@@ -146,7 +146,7 @@ end
 
 -- ===== UI helpers =====
 local RED = Color3.fromRGB(222, 52, 68)
-local PANEL = Color3.fromRGB(26, 27, 33)
+local PANEL = Color3.fromRGB(28, 28, 38)
 local WHITE = Color3.new(1, 1, 1)
 local function mk(class, props, par)
 	local o = Instance.new(class)
@@ -156,7 +156,7 @@ local function mk(class, props, par)
 end
 local function round(o, r) mk("UICorner", { CornerRadius = UDim.new(0, r or 8) }, o) end
 local function stroke(o, th, col)
-	mk("UIStroke", { Thickness = th or 1.5, Color = col or Color3.fromRGB(70, 72, 86), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, o)
+	mk("UIStroke", { Thickness = th or 1.5, Color = col or Color3.fromRGB(60, 62, 80), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, o)
 end
 local function fetchAsset(url, name)
 	local ok, res = pcall(function()
@@ -759,10 +759,10 @@ end
 
 -- ===== TEMA + DETECÇÃO DE DISPOSITIVO (PC / Mobile) =====
 local UI = {
-	ACTIVE = Color3.fromRGB(82, 26, 36), HOVER = Color3.fromRGB(36, 37, 45), EDGE = Color3.fromRGB(70, 72, 86),
-	DIM = Color3.fromRGB(150, 155, 168), SOFT = Color3.fromRGB(128, 134, 148), GLOW = Color3.fromRGB(255, 80, 96),
-	pc = false, listeners = {}, scaleFns = {}, bgFns = {}, keyFns = {},
-	cfg = { scale = 1, accent = "Vermelho", bgOpacity = 100, bgImage = true, anim = true, key = "B", floatBtn = true, fps = false, binds = {} },
+	ACTIVE = Color3.fromRGB(82, 26, 36), HOVER = Color3.fromRGB(40, 40, 54), EDGE = Color3.fromRGB(60, 62, 80),
+	DIM = Color3.fromRGB(158, 160, 178), SOFT = Color3.fromRGB(124, 128, 148), GLOW = Color3.fromRGB(255, 80, 96),
+	pc = false, ROW_T = 0.3, listeners = {}, scaleFns = {}, bgFns = {}, keyFns = {},
+	cfg = { v2 = true, scale = 1, accent = "Roxo", bgOpacity = 100, bgImage = true, anim = true, key = "B", floatBtn = true, fps = false, binds = {} },
 }
 function UI.tween(o, t, props)
 	pcall(function()
@@ -794,32 +794,37 @@ end))
 local function panel(w, h, pos)
 	local f = mk("Frame", {
 		Size = UDim2.fromOffset(w, h), Position = pos,
-		BackgroundColor3 = Color3.fromRGB(15, 16, 20), ClipsDescendants = true,
+		BackgroundColor3 = Color3.fromRGB(12, 12, 17), ClipsDescendants = true,
 	}, gui)
-	round(f, 14)
+	round(f, 16)
 	local es = mk("UIStroke", { Thickness = 1.5, Color = RED, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, f)
 	mk("UIGradient", {
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(222, 52, 68)),
-			ColorSequenceKeypoint.new(0.4, Color3.fromRGB(72, 74, 88)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(44, 46, 56)),
+			ColorSequenceKeypoint.new(0.35, Color3.fromRGB(62, 62, 82)),
+			ColorSequenceKeypoint.new(0.7, Color3.fromRGB(42, 42, 56)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 34, 48)),
 		}),
-		Rotation = 90,
+		Rotation = 60,
 	}, es)
 	local img = mk("ImageLabel", {
 		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1,
 		ScaleType = Enum.ScaleType.Crop, ImageTransparency = 0.86,
 	}, f)
-	round(img, 14)
+	round(img, 16)
 	local shade = mk("Frame", {
-		Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(15, 16, 20),
+		Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(12, 12, 17),
 		BackgroundTransparency = 0, BorderSizePixel = 0,
 	}, f)
-	round(shade, 14)
+	round(shade, 16)
 	mk("UIGradient", {
 		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0.12) }),
 		Rotation = 90,
 	}, shade)
+	-- brilho suave no topo (usa a cor de destaque, então acompanha a troca de cor)
+	local aura = mk("Frame", { Size = UDim2.new(1, 0, 0, 150), BackgroundColor3 = RED, BorderSizePixel = 0 }, f)
+	round(aura, 16)
+	mk("UIGradient", { Rotation = 90, Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.84), NumberSequenceKeypoint.new(1, 1) }) }, aura)
 	-- escala: encaixa na tela do celular e dá uma animação suave ao abrir
 	local function fitScale()
 		local cam = workspace.CurrentCamera
@@ -869,16 +874,19 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 	-- barra do topo (flutuante, com degradê)
 	local top = mk("Frame", {
 		Size = UDim2.new(1, -12, 0, 36), Position = UDim2.fromOffset(6, 6),
-		BackgroundColor3 = Color3.fromRGB(20, 21, 26), BackgroundTransparency = 0.15, BorderSizePixel = 0,
+		BackgroundColor3 = Color3.fromRGB(18, 18, 25), BackgroundTransparency = 0.08, BorderSizePixel = 0,
 	}, win)
 	round(top, 12)
+	mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, top)
 	mk("UIGradient", {
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(96, 28, 38)),
-			ColorSequenceKeypoint.new(0.6, Color3.fromRGB(30, 31, 38)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 24)),
+			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(30, 30, 42)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 16, 23)),
 		}),
 	}, top)
+	local glowLine = mk("Frame", { Size = UDim2.new(1, -24, 0, 1), Position = UDim2.new(0, 12, 1, -1), BackgroundColor3 = UI.GLOW, BorderSizePixel = 0 }, top)
+	mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) }) }, glowLine)
 	local left = mk("Frame", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.fromOffset(14, 0), BackgroundTransparency = 1 }, top)
 	mk("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center,
@@ -894,10 +902,11 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 			if v then pcall(function() if kind == "content" then brand.ImageContent = v else brand.Image = v end end) end
 		end)
 	end
-	mk("TextLabel", {
+	local ttl = mk("TextLabel", {
 		Text = title, LayoutOrder = 0, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 36),
 		BackgroundTransparency = 1, TextColor3 = WHITE, Font = Enum.Font.GothamBlack, TextSize = 16,
 	}, left)
+	mk("UIGradient", { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, WHITE), ColorSequenceKeypoint.new(0.6, WHITE), ColorSequenceKeypoint.new(1, UI.GLOW) }) }, ttl)
 	local function pill(text, order, col)
 		local pl = mk("TextLabel", {
 			Text = text, LayoutOrder = order, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 18),
@@ -909,7 +918,7 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 		return pl
 	end
 	pill(sub, 1, Color3.fromRGB(150, 34, 48))
-	local devPill = pill("", 2, Color3.fromRGB(44, 46, 54))
+	local devPill = pill("", 2, Color3.fromRGB(38, 38, 52))
 	local function devTxt() devPill.Text = UI.pc and ("PC  •  tecla " .. UI.keyName()) or "Mobile" end
 	UI.onDevice(devTxt)
 	table.insert(UI.keyFns, devTxt)
@@ -924,21 +933,21 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 	-- fundo da lateral e do conteúdo
 	local sideBg = mk("Frame", {
 		Position = UDim2.fromOffset(8, 48), Size = UDim2.new(0, 154, 1, -56),
-		BackgroundColor3 = Color3.fromRGB(12, 13, 17), BackgroundTransparency = 0.35, BorderSizePixel = 0,
+		BackgroundColor3 = Color3.fromRGB(10, 10, 15), BackgroundTransparency = 0.2, BorderSizePixel = 0,
 	}, win)
 	round(sideBg, 12)
 	mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, sideBg)
 	local contentBg = mk("Frame", {
 		Position = UDim2.fromOffset(168, 48), Size = UDim2.new(1, -176, 1, -78),
-		BackgroundColor3 = Color3.fromRGB(12, 13, 17), BackgroundTransparency = 0.45, BorderSizePixel = 0,
+		BackgroundColor3 = Color3.fromRGB(10, 10, 15), BackgroundTransparency = 0.3, BorderSizePixel = 0,
 	}, win)
 	round(contentBg, 12)
 	mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, contentBg)
 
 	-- busca de abas
 	local searchBox = mk("TextBox", {
-		Position = UDim2.fromOffset(14, 54), Size = UDim2.fromOffset(142, 26), BackgroundColor3 = Color3.fromRGB(20, 21, 26),
-		BackgroundTransparency = 0.25, Text = "", PlaceholderText = "🔍 Buscar aba...", PlaceholderColor3 = UI.DIM,
+		Position = UDim2.fromOffset(14, 54), Size = UDim2.fromOffset(142, 26), BackgroundColor3 = Color3.fromRGB(24, 24, 34),
+		BackgroundTransparency = 0.1, Text = "", PlaceholderText = "🔍 Buscar aba...", PlaceholderColor3 = UI.DIM,
 		TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 11, ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Left,
 	}, win)
 	round(searchBox, 9)
@@ -952,7 +961,7 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 		BorderSizePixel = 0, ScrollBarThickness = 2, ScrollBarImageColor3 = UI.EDGE,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(),
 	}, win)
-	mk("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, side)
+	mk("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, side)
 	mk("UIPadding", { PaddingTop = UDim.new(0, 2), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4) }, side)
 
 	local pages, tabBtns, bars, parts = {}, {}, {}, {}
@@ -963,12 +972,14 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 		local on = (n == current)
 		UI.tween(b, 0.12, {
 			BackgroundColor3 = on and UI.ACTIVE or (tp.hover and UI.HOVER or PANEL),
-			BackgroundTransparency = on and 0.05 or (tp.hover and 0.25 or 0.5),
+			BackgroundTransparency = on and 0 or (tp.hover and 0.45 or 0.85),
 		})
-		UI.tween(tp.stroke, 0.12, { Transparency = on and 0.1 or 0.65 })
+		UI.tween(tp.stroke, 0.12, { Color = UI.GLOW, Transparency = on and 0.5 or 1 })
 		tp.ic.TextColor3 = on and WHITE or UI.DIM
-			tp.badge.BackgroundColor3 = on and RED or UI.HOVER
+		tp.badge.BackgroundColor3 = on and RED or UI.HOVER
 		tp.lb.TextColor3 = on and WHITE or UI.DIM
+		tp.lb.Font = on and Enum.Font.GothamBold or Enum.Font.GothamMedium
+		UI.tween(tp.lb, 0.12, { Position = UDim2.fromOffset((tp.hover and not on) and 34 or 32, 0) })
 		bars[n].Visible = on
 	end
 	local function selectTab(name)
@@ -983,25 +994,26 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 	end
 	for _, name in ipairs(tabNames) do
 		local b = mk("TextButton", {
-			Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 24),
-			BackgroundColor3 = PANEL, BackgroundTransparency = 0.5,
+			Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 22),
+			BackgroundColor3 = PANEL, BackgroundTransparency = 0.85,
 		}, side)
-		round(b, 8)
-		UI.onDevice(function(pc) b.Size = UDim2.new(1, 0, 0, pc and 24 or 28) end)
-		local bst = mk("UIStroke", { Thickness = 1.2, Color = UI.EDGE, Transparency = 0.65, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
-		local badge = mk("Frame", { Size = UDim2.fromOffset(18, 18), Position = UDim2.new(0, 8, 0.5, -9), BackgroundColor3 = UI.HOVER, BorderSizePixel = 0 }, b)
+		round(b, 9)
+		mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.4) }) }, b)
+		UI.onDevice(function(pc) b.Size = UDim2.new(1, 0, 0, pc and 22 or 28) end)
+		local bst = mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+		local badge = mk("Frame", { Size = UDim2.fromOffset(16, 16), Position = UDim2.new(0, 9, 0.5, -8), BackgroundColor3 = UI.HOVER, BorderSizePixel = 0 }, b)
 			round(badge, 6)
 			local ic = mk("TextLabel", {
 				Text = ICONS[name] or "◆", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1,
-				TextColor3 = UI.DIM, Font = Enum.Font.GothamBold, TextSize = 10,
+				TextColor3 = UI.DIM, Font = Enum.Font.GothamBold, TextSize = 9,
 			}, badge)
 		local lb = mk("TextLabel", {
-			Text = name, Size = UDim2.new(1, -42, 1, 0), Position = UDim2.fromOffset(34, 0),
+			Text = name, Size = UDim2.new(1, -42, 1, 0), Position = UDim2.fromOffset(32, 0),
 			BackgroundTransparency = 1, TextColor3 = UI.DIM, Font = Enum.Font.GothamMedium, TextSize = 11,
 			TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
 		}, b)
 		local bar = mk("Frame", {
-			Size = UDim2.fromOffset(3, 14), Position = UDim2.new(0, 3, 0.5, -7),
+			Size = UDim2.fromOffset(3, 12), Position = UDim2.new(0, 2, 0.5, -6),
 			BackgroundColor3 = UI.GLOW, BorderSizePixel = 0, Visible = false,
 		}, b)
 		round(bar, 2)
@@ -1047,15 +1059,16 @@ local function buildWindow(w, h, title, sub, tabNames, onClose)
 	local function topBtn(txt, x, size, cb, danger)
 		local t = mk("TextButton", {
 			Text = txt, Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, x, 0.5, -13), AutoButtonColor = false,
-			BackgroundColor3 = Color3.fromRGB(18, 19, 24), BackgroundTransparency = 0.4,
+			BackgroundColor3 = Color3.fromRGB(34, 34, 46), BackgroundTransparency = 0.2,
 			TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = size,
 		}, top)
 		round(t, 13)
+		mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, t)
 		t.MouseEnter:Connect(function()
-			UI.tween(t, 0.12, { BackgroundColor3 = danger and Color3.fromRGB(205, 30, 46) or UI.ACTIVE, BackgroundTransparency = 0.05 })
+			UI.tween(t, 0.12, { BackgroundColor3 = danger and Color3.fromRGB(205, 30, 46) or UI.ACTIVE, BackgroundTransparency = 0 })
 		end)
 		t.MouseLeave:Connect(function()
-			UI.tween(t, 0.12, { BackgroundColor3 = Color3.fromRGB(18, 19, 24), BackgroundTransparency = 0.4 })
+			UI.tween(t, 0.12, { BackgroundColor3 = Color3.fromRGB(34, 34, 46), BackgroundTransparency = 0.2 })
 		end)
 		t.MouseButton1Click:Connect(cb)
 		return t
@@ -1110,7 +1123,7 @@ local function floatButton(onTap, winRef)
 		Size = UDim2.fromScale(1, 1), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
 		BackgroundTransparency = 1, ZIndex = 1,
 	}, root)
-	mk("UICorner", { CornerRadius = UDim.new(0, 8) }, pulse)
+	mk("UICorner", { CornerRadius = UDim.new(0, 12) }, pulse)
 	local ps = mk("UIStroke", { Thickness = 2, Color = UI.GLOW, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, pulse)
 	local pulseScale = mk("UIScale", { Scale = 1 }, pulse)
 
@@ -1118,7 +1131,7 @@ local function floatButton(onTap, winRef)
 		Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(16, 17, 22), BackgroundTransparency = 0.05, AutoButtonColor = false,
 		ScaleType = Enum.ScaleType.Fit, Image = "", ZIndex = 2,
 	}, root)
-	round(b, 8) -- quadrado com cantinho levemente arredondado
+	round(b, 12) -- quadrado com cantinho arredondado
 	-- sem UICorner / sem crop: o recorte do mago (fundo preto removido) já define o formato, não é mais um círculo
 	local press = mk("UIScale", { Scale = 1 }, b)
 	local fs = mk("UIStroke", { Thickness = 1.5, Color = UI.GLOW, Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b) -- borda do quadradinho (syncState muda a espessura) -- mantido só pra syncState não quebrar (fs.Thickness); invisível
@@ -1155,7 +1168,7 @@ local function floatButton(onTap, winRef)
 	-- balãozinho (PC): aparece do lado de dentro da tela
 	local tip = mk("TextLabel", {
 		Text = "Mystic Menu", Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, Visible = false, ZIndex = 6,
-		BackgroundColor3 = Color3.fromRGB(20, 21, 26), BackgroundTransparency = 0.05, TextColor3 = WHITE,
+		BackgroundColor3 = Color3.fromRGB(24, 24, 34), BackgroundTransparency = 0.05, TextColor3 = WHITE,
 		Font = Enum.Font.GothamMedium, TextSize = 11,
 	}, root)
 	round(tip, 12)
@@ -1253,45 +1266,50 @@ end
 
 -- linhas / seções das páginas
 local function section(par, text)
-	local f = mk("Frame", { Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1 }, par)
-	local acc = mk("Frame", { Size = UDim2.fromOffset(3, 15), Position = UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = UI.GLOW, BorderSizePixel = 0 }, f)
+	local f = mk("Frame", { Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1 }, par)
+	local acc = mk("Frame", { Size = UDim2.fromOffset(3, 14), Position = UDim2.new(0, 2, 0.5, -8), BackgroundColor3 = UI.GLOW, BorderSizePixel = 0 }, f)
 	round(acc, 2)
 	mk("TextLabel", {
-		Text = text, Size = UDim2.new(1, -14, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1, TextColor3 = WHITE,
-		Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = text, Size = UDim2.new(1, -14, 1, -2), Position = UDim2.fromOffset(13, 0), BackgroundTransparency = 1, TextColor3 = WHITE,
+		Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
 	}, f)
-	local ln = mk("Frame", { Size = UDim2.new(1, -4, 0, 1), Position = UDim2.new(0, 2, 1, -2), BackgroundColor3 = UI.EDGE, BorderSizePixel = 0 }, f)
-	mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) }) }, ln)
+	local ln = mk("Frame", { Size = UDim2.new(1, -4, 0, 1), Position = UDim2.new(0, 2, 1, -2), BackgroundColor3 = UI.GLOW, BorderSizePixel = 0 }, f)
+	mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.6, 0.85), NumberSequenceKeypoint.new(1, 1) }) }, ln)
 end
--- (hover compartilhado pelas linhas)
+-- (hover compartilhado pelas linhas: borda acende na cor de destaque, aperto escurece)
 local function rowHover(b, st)
-	b.MouseEnter:Connect(function()
-		UI.tween(b, 0.12, { BackgroundColor3 = UI.HOVER, BackgroundTransparency = 0.05 })
-		UI.tween(st, 0.12, { Transparency = 0 })
-	end)
-	b.MouseLeave:Connect(function()
-		UI.tween(b, 0.12, { BackgroundColor3 = PANEL, BackgroundTransparency = 0.25 })
-		UI.tween(st, 0.12, { Transparency = 0.35 })
-	end)
+	local over = false
+	local function normal(t)
+		UI.tween(b, t, { BackgroundColor3 = PANEL, BackgroundTransparency = UI.ROW_T })
+		UI.tween(st, t, { Color = UI.EDGE, Transparency = 0.5 })
+	end
+	local function hot(t)
+		UI.tween(b, t, { BackgroundColor3 = UI.HOVER, BackgroundTransparency = 0.08 })
+		UI.tween(st, t, { Color = UI.GLOW, Transparency = 0.4 })
+	end
+	b.MouseEnter:Connect(function() over = true; hot(0.12) end)
+	b.MouseLeave:Connect(function() over = false; normal(0.12) end)
 	-- efeito de aperto
 	b.MouseButton1Down:Connect(function()
 		UI.tween(b, 0.06, { BackgroundColor3 = UI.ACTIVE, BackgroundTransparency = 0 })
 		UI.tween(st, 0.06, { Color = UI.GLOW, Transparency = 0 })
 	end)
 	local function release()
-		UI.tween(b, 0.16, { BackgroundColor3 = PANEL, BackgroundTransparency = 0.25 })
-		UI.tween(st, 0.16, { Color = UI.EDGE, Transparency = 0.35 })
+		if over and UI.pc then hot(0.16) else normal(0.16) end
 	end
 	b.MouseButton1Up:Connect(release)
 	b.TouchTap:Connect(release)
 end
 local function rowBtn(par, text, cb, compact)
-	local hgt = compact and 32 or 38
+	local hgt = compact and 28 or 34
 	local b = mk("TextButton", {
-		Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 0, hgt), BackgroundColor3 = PANEL, BackgroundTransparency = 0.25,
+		Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 0, hgt), BackgroundColor3 = PANEL, BackgroundTransparency = UI.ROW_T,
 	}, par)
 	round(b, 10)
-	local st = mk("UIStroke", { Thickness = 1.2, Color = UI.EDGE, Transparency = 0.35, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+	mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.3) }) }, b)
+	local st = mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+	local pip = mk("Frame", { Size = UDim2.fromOffset(3, hgt - 14), Position = UDim2.new(0, 4, 0.5, -(hgt - 14) / 2), BackgroundColor3 = UI.GLOW, BackgroundTransparency = 1, BorderSizePixel = 0 }, b)
+	round(pip, 2)
 	-- (o texto precisa ser o PRIMEIRO TextLabel: outras abas trocam esse texto)
 	mk("TextLabel", {
 		Text = text, Size = UDim2.new(1, -44, 1, 0), Position = UDim2.fromOffset(14, 0), BackgroundTransparency = 1,
@@ -1302,8 +1320,14 @@ local function rowBtn(par, text, cb, compact)
 		Text = "›", Size = UDim2.fromOffset(28, hgt), Position = UDim2.new(1, -34, 0, 0), BackgroundTransparency = 1,
 		TextColor3 = UI.GLOW, Font = Enum.Font.GothamBold, TextSize = compact and 20 or 24,
 	}, b)
-	b.MouseEnter:Connect(function() UI.tween(arrow, 0.14, { Position = UDim2.new(1, -28, 0, 0) }) end)
-	b.MouseLeave:Connect(function() UI.tween(arrow, 0.14, { Position = UDim2.new(1, -34, 0, 0) }) end)
+	b.MouseEnter:Connect(function()
+		UI.tween(arrow, 0.14, { Position = UDim2.new(1, -28, 0, 0) })
+		UI.tween(pip, 0.14, { BackgroundTransparency = 0 })
+	end)
+	b.MouseLeave:Connect(function()
+		UI.tween(arrow, 0.14, { Position = UDim2.new(1, -34, 0, 0) })
+		UI.tween(pip, 0.14, { BackgroundTransparency = 1 })
+	end)
 	rowHover(b, st)
 	b.MouseButton1Click:Connect(cb)
 	return b
@@ -1426,7 +1450,7 @@ do -- ===== Teclas dos botões flutuantes (PC): cada botão flutuante ligado pod
 		end
 		local badge = mk("TextLabel", {
 			Text = "", AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 16), AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 1, -6), BackgroundColor3 = Color3.fromRGB(20, 21, 26), TextColor3 = WHITE,
+			Position = UDim2.new(0.5, 0, 1, -6), BackgroundColor3 = Color3.fromRGB(24, 24, 34), TextColor3 = WHITE,
 			Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 26, Visible = false,
 		}, b)
 		round(badge, 5)
@@ -1555,7 +1579,7 @@ do -- ===== Teclas dos botões flutuantes (PC): cada botão flutuante ligado pod
 		end)
 	end
 end
-local DARK = Color3.fromRGB(40, 41, 49)
+local DARK = Color3.fromRGB(44, 44, 58)
 local function toggleRow(par, text, desc, onChange, initial)
 	if type(desc) == "function" then initial = onChange; onChange, desc = desc, nil end
 	local key = AUTO.key(par, text)
@@ -1564,22 +1588,27 @@ local function toggleRow(par, text, desc, onChange, initial)
 	local saved = AUTO.data[key]
 	if type(saved) == "boolean" then state = saved end
 	if state ~= default then AUTO.restore(function() onChange(state) end) end
+	local rh = desc and 44 or 34
 	local b = mk("TextButton", {
-		Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 0, desc and 48 or 38), BackgroundColor3 = PANEL, BackgroundTransparency = 0.25,
+		Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 0, rh), BackgroundColor3 = PANEL, BackgroundTransparency = UI.ROW_T,
 	}, par)
 	round(b, 10)
-	local st = mk("UIStroke", { Thickness = 1.2, Color = UI.EDGE, Transparency = 0.35, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+	mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.3) }) }, b)
+	local st = mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+	-- tracinho na lateral: aparece quando a função está ligada
+	local pip = mk("Frame", { Size = UDim2.fromOffset(3, rh - 16), Position = UDim2.new(0, 4, 0.5, -(rh - 16) / 2), BackgroundColor3 = UI.GLOW, BackgroundTransparency = 1, BorderSizePixel = 0 }, b)
+	round(pip, 2)
 	mk("TextLabel", {
-		Text = text, Size = UDim2.new(1, -78, 0, desc and 26 or 38), Position = UDim2.fromOffset(14, desc and 3 or 0), BackgroundTransparency = 1,
+		Text = text, Size = UDim2.new(1, -74, 0, desc and 24 or 34), Position = UDim2.fromOffset(14, desc and 3 or 0), BackgroundTransparency = 1,
 		TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
 	}, b)
 	if desc then
 		mk("TextLabel", {
-			Text = desc, Size = UDim2.new(1, -78, 0, 16), Position = UDim2.fromOffset(14, 27), BackgroundTransparency = 1,
+			Text = desc, Size = UDim2.new(1, -74, 0, 14), Position = UDim2.fromOffset(14, 26), BackgroundTransparency = 1,
 			TextColor3 = UI.SOFT, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
 		}, b)
 	end
-	local sw = mk("Frame", { Size = UDim2.fromOffset(40, 22), Position = UDim2.new(1, -52, 0.5, -11), BackgroundColor3 = DARK, BorderSizePixel = 0 }, b)
+	local sw = mk("Frame", { Size = UDim2.fromOffset(40, 22), Position = UDim2.new(1, -54, 0.5, -11), BackgroundColor3 = DARK, BorderSizePixel = 0 }, b)
 	round(sw, 11)
 	local sws = mk("UIStroke", { Thickness = 1.5, Color = UI.EDGE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, sw)
 	local knob = mk("Frame", { Size = UDim2.fromOffset(16, 16), Position = UDim2.fromOffset(3, 3), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, sw)
@@ -1589,12 +1618,14 @@ local function toggleRow(par, text, desc, onChange, initial)
 		local sc = state and RED or DARK
 		local kc = state and WHITE or Color3.fromRGB(150, 155, 168)
 		local swc = state and UI.GLOW or UI.EDGE
+		local pt = state and 0 or 1
 		if anim then
 			UI.tween(knob, 0.14, { Position = kp, BackgroundColor3 = kc })
 			UI.tween(sw, 0.14, { BackgroundColor3 = sc })
 			UI.tween(sws, 0.14, { Color = swc })
+			UI.tween(pip, 0.14, { BackgroundTransparency = pt })
 		else
-			knob.Position, knob.BackgroundColor3, sw.BackgroundColor3, sws.Color = kp, kc, sc, swc
+			knob.Position, knob.BackgroundColor3, sw.BackgroundColor3, sws.Color, pip.BackgroundTransparency = kp, kc, sc, swc, pt
 		end
 	end
 	paint(false)
@@ -1613,34 +1644,37 @@ local function sliderRow(par, text, desc, minV, maxV, defV, onChange)
 	local savedV = AUTO.data[key]
 	if type(savedV) == "number" then cur = math.clamp(math.floor(savedV + 0.5), minV, maxV) end
 	if cur ~= defV then AUTO.restore(function() onChange(cur) end) end
-	local b = mk("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundColor3 = PANEL, BackgroundTransparency = 0.25 }, par)
+	local b = mk("Frame", { Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = PANEL, BackgroundTransparency = UI.ROW_T }, par)
 	round(b, 10)
-	mk("UIStroke", { Thickness = 1.2, Color = UI.EDGE, Transparency = 0.35, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+	mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.3) }) }, b)
+	mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
 	mk("TextLabel", {
-		Text = text, Size = UDim2.new(0.5, -16, 0, 26), Position = UDim2.fromOffset(14, 3), BackgroundTransparency = 1,
+		Text = text, Size = UDim2.new(0.5, -16, 0, 26), Position = UDim2.fromOffset(14, 4), BackgroundTransparency = 1,
 		TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
 	}, b)
 	mk("TextLabel", {
-		Text = desc, Size = UDim2.new(0.5, -16, 0, 16), Position = UDim2.fromOffset(14, 27), BackgroundTransparency = 1,
+		Text = desc, Size = UDim2.new(0.5, -16, 0, 16), Position = UDim2.fromOffset(14, 28), BackgroundTransparency = 1,
 		TextColor3 = UI.SOFT, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
 	}, b)
+	-- valor dentro de uma etiquetinha
 	local val = mk("TextLabel", {
-		Text = tostring(cur), Size = UDim2.fromOffset(34, 48), Position = UDim2.new(0.5, 0, 0, 0), BackgroundTransparency = 1,
-		TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 13,
+		Text = tostring(cur), Size = UDim2.fromOffset(36, 20), Position = UDim2.new(0.5, 0, 0.5, -10), BackgroundColor3 = DARK, BackgroundTransparency = 0.2,
+		TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 12,
 	}, b)
-	local hit = mk("Frame", { Size = UDim2.new(0.5, -58, 0, 28), Position = UDim2.new(0.5, 38, 0.5, -14), BackgroundTransparency = 1 }, b)
-	local bar = mk("Frame", { Size = UDim2.new(1, 0, 0, 6), Position = UDim2.new(0, 0, 0.5, -3), BackgroundColor3 = DARK, BorderSizePixel = 0 }, hit)
-	round(bar, 3)
+	round(val, 7)
+	local hit = mk("Frame", { Size = UDim2.new(0.5, -62, 0, 28), Position = UDim2.new(0.5, 42, 0.5, -14), BackgroundTransparency = 1 }, b)
+	local bar = mk("Frame", { Size = UDim2.new(1, 0, 0, 8), Position = UDim2.new(0, 0, 0.5, -4), BackgroundColor3 = DARK, BorderSizePixel = 0 }, hit)
+	round(bar, 4)
 	local rel0 = (cur - minV) / (maxV - minV)
 	local fill = mk("Frame", { Size = UDim2.new(rel0, 0, 1, 0), BackgroundColor3 = RED, BorderSizePixel = 0 }, bar)
-	round(fill, 3)
+	round(fill, 4)
 	mk("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 90, 105), Color3.fromRGB(190, 25, 38)) }, fill)
 	local knob = mk("Frame", {
-		Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(rel0, 0, 0.5, 0),
+		Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(rel0, 0, 0.5, 0),
 		BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 2,
 	}, bar)
-	round(knob, 7)
-	mk("UIStroke", { Thickness = 1.5, Color = RED, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, knob)
+	round(knob, 8)
+	mk("UIStroke", { Thickness = 2, Color = RED, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, knob)
 	local dragging = false
 	local function setFromX(x)
 		local rel = math.clamp((x - bar.AbsolutePosition.X) / math.max(bar.AbsoluteSize.X, 1), 0, 1)
@@ -1662,6 +1696,59 @@ local function sliderRow(par, text, desc, minV, maxV, defV, onChange)
 	end))
 	return b
 end
+-- linha com 2-4 botões segmentados (ex.: "Mirar em: Cabeça / Peito / Pé"); salva e volta igual toggleRow/sliderRow
+local function pickerRow(par, text, desc, options, defIdx, onChange)
+	local key = AUTO.key(par, text)
+	local idx = defIdx or 1
+	local saved = AUTO.data[key]
+	if type(saved) == "number" and options[saved] then idx = saved end
+	local b = mk("Frame", { Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = PANEL, BackgroundTransparency = UI.ROW_T }, par)
+	round(b, 10)
+	mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.3) }) }, b)
+	mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+	mk("TextLabel", {
+		Text = text, Size = UDim2.new(1, -28, 0, 18), Position = UDim2.fromOffset(14, 4), BackgroundTransparency = 1,
+		TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
+	}, b)
+	if desc then
+		mk("TextLabel", {
+			Text = desc, Size = UDim2.new(1, -28, 0, 14), Position = UDim2.fromOffset(14, 20), BackgroundTransparency = 1,
+			TextColor3 = UI.SOFT, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
+		}, b)
+	end
+	-- trilho escuro; o botão escolhido fica na cor de destaque
+	local seg = mk("Frame", { Size = UDim2.new(1, -28, 0, 22), Position = UDim2.fromOffset(14, 35), BackgroundColor3 = Color3.fromRGB(14, 14, 20), BackgroundTransparency = 0.2 }, b)
+	round(seg, 9)
+	mk("UIPadding", { PaddingLeft = UDim.new(0, 2), PaddingRight = UDim.new(0, 2), PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 2) }, seg)
+	mk("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, seg)
+	local btns = {}
+	local function paint()
+		for i, bb in ipairs(btns) do
+			local on = i == idx
+			bb.BackgroundColor3 = on and RED or DARK
+			bb.BackgroundTransparency = on and 0.05 or 1
+			bb.TextColor3 = on and WHITE or UI.DIM
+		end
+	end
+	for i, name in ipairs(options) do
+		local ob = mk("TextButton", {
+			Text = name, AutoButtonColor = false, Size = UDim2.new(1 / #options, -4, 1, 0),
+			BackgroundColor3 = DARK, BackgroundTransparency = 1, TextColor3 = UI.DIM,
+			Font = Enum.Font.GothamBold, TextSize = 11,
+		}, seg)
+		round(ob, 7)
+		btns[i] = ob
+		ob.MouseButton1Click:Connect(function()
+			idx = i
+			paint()
+			AUTO.set(key, idx)
+			pcall(onChange, options[idx], idx)
+		end)
+	end
+	paint()
+	if idx ~= (defIdx or 1) then AUTO.restore(function() onChange(options[idx], idx) end) end
+	return b, function(i) idx = i; paint(); AUTO.set(key, idx) end
+end
 
 local function buildCredits(page)
 	local function lbl(text, size, bold, col, h)
@@ -1675,13 +1762,22 @@ local function buildCredits(page)
 	lbl("Feito por 0Ds", 15, true)
 	lbl("Nick: elitefroster", 13, false)
 	lbl("", 8, false, WHITE, 10)
-	lbl("⚠ Aviso: o hub não está 100% pronto e o andar sobre a água não funciona.", 12, true, Color3.fromRGB(255, 190, 120), 44)
+	lbl("Discord: https://discord.gg/hr23ARanX", 13, false, UI.DIM)
+	local dcBtn
+	dcBtn = rowBtn(page, "Copiar link do Discord", function()
+		local ok = pcall(function() setclipboard("https://discord.gg/hr23ARanX") end)
+		local t = dcBtn:FindFirstChildOfClass("TextLabel")
+		if t then
+			t.Text = ok and "Link copiado!" or "Não deu pra copiar (seu executor não tem setclipboard)"
+			task.delay(2, function() if t.Parent then t.Text = "Copiar link do Discord" end end)
+		end
+	end, true)
 end
 
 -- ===== CONFIGURAÇÕES (engrenagem ⚙): tamanho, cor, fundo, tecla, FPS... Salva em SHIN HUB/config.json =====
 do
 	local CFG_FILE = FOLDER .. "/config.json"
-	local DEFAULT = { scale = 1, accent = "Vermelho", bgOpacity = 100, bgImage = true, anim = true, key = "B", floatBtn = true, fps = false, binds = {} }
+	local DEFAULT = { v2 = true, scale = 1, accent = "Roxo", bgOpacity = 100, bgImage = true, anim = true, key = "B", floatBtn = true, fps = false, binds = {} }
 	local ACCENTS = {
 		{ "Vermelho", Color3.fromRGB(222, 52, 68) }, { "Laranja", Color3.fromRGB(240, 128, 48) },
 		{ "Amarelo", Color3.fromRGB(235, 190, 50) }, { "Verde", Color3.fromRGB(46, 196, 120) },
@@ -1697,7 +1793,7 @@ do
 		{ Color3.fromRGB(255, 90, 104), function(c) return c:Lerp(WHITE, 0.26) end },
 		{ Color3.fromRGB(255, 90, 105), function(c) return c:Lerp(WHITE, 0.27) end },
 		{ Color3.fromRGB(255, 120, 125), function(c) return c:Lerp(WHITE, 0.4) end },
-		{ Color3.fromRGB(82, 26, 36), function(c) return Color3.fromRGB(26, 27, 33):Lerp(c, 0.32) end },
+		{ Color3.fromRGB(82, 26, 36), function(c) return Color3.fromRGB(28, 28, 38):Lerp(c, 0.34) end },
 		{ Color3.fromRGB(150, 34, 48), function(c) return c:Lerp(BLACK, 0.3) end },
 		{ Color3.fromRGB(96, 28, 38), function(c) return c:Lerp(BLACK, 0.55) end },
 		{ Color3.fromRGB(190, 25, 38), function(c) return c:Lerp(BLACK, 0.15) end },
@@ -1719,6 +1815,7 @@ do
 				for k, v in pairs(DEFAULT) do
 					if type(d[k]) == type(v) then UI.cfg[k] = d[k] end
 				end
+				if d.v2 ~= true then UI.cfg.accent = "Roxo" end -- config antiga (vermelho): passa pro roxo uma vez
 			end
 		end
 	end)
@@ -1785,7 +1882,7 @@ do
 	function UI.setFps(on)
 		if on and not fpsLbl then
 			fpsLbl = mk("TextLabel", {
-				Size = UDim2.fromOffset(128, 20), Position = UDim2.new(1, -136, 0, 8), BackgroundColor3 = Color3.fromRGB(20, 21, 26),
+				Size = UDim2.fromOffset(128, 20), Position = UDim2.new(1, -136, 0, 8), BackgroundColor3 = Color3.fromRGB(24, 24, 34),
 				BackgroundTransparency = 0.2, TextColor3 = WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, Text = "FPS", ZIndex = 5,
 			}, gui)
 			round(fpsLbl, 8)
@@ -2772,44 +2869,79 @@ function tagDraw(char, d, nm)
 	local head = char and char:FindFirstChild("Head")
 	if not head then return end
 	local old = head:FindFirstChild(nm)
+	if old and not old:FindFirstChild("A") then old:Destroy(); old = nil end -- letreiro do visual antigo: refaz
 	if not (type(d) == "table" and d.on) then
 		if old then old:Destroy() end
 		return
 	end
+	local pl = Players:GetPlayerFromCharacter(char)
 	local text = tostring(d.text or ""):sub(1, 16)
 	if text == "" then -- sem nome escolhido: usa o nome de exibição do Roblox da pessoa
-		local pl = Players:GetPlayerFromCharacter(char)
 		text = tostring(pl and pl.DisplayName or lp.DisplayName):sub(1, 16)
 	end
 	local role = tostring(d.role or "Membro"):sub(1, 14)
 	local fontName = table.find(TAG_FONTS, d.font) and d.font or "GothamBlack"
 	local g = old
 	if not g then
+		-- tamanho em PIXELS (não em studs): o letreiro não cresce nem encolhe com o zoom da câmera
 		g = mk("BillboardGui", {
-			Name = nm, Size = UDim2.fromOffset(320, 110), StudsOffset = Vector3.new(0, 3.8, 0),
+			Name = nm, Size = UDim2.fromOffset(240, 132), StudsOffset = Vector3.new(0, 3.9, 0),
 			AlwaysOnTop = true, LightInfluence = 0, MaxDistance = 1500,
 		}, nil)
 		g:SetAttribute("DsFx", true)
-		mk("TextLabel", {
-			Name = "N", Size = UDim2.new(1, 0, 0.62, 0), BackgroundTransparency = 1, TextScaled = true,
+		-- foto de perfil em cima do nome
+		local av = mk("ImageLabel", {
+			Name = "A", Size = UDim2.fromOffset(56, 56), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 0),
+			BackgroundColor3 = Color3.fromRGB(24, 24, 34), Image = "", ScaleType = Enum.ScaleType.Crop,
+		}, g)
+		mk("UICorner", { CornerRadius = UDim.new(1, 0) }, av)
+		mk("UIStroke", { Thickness = 3, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, av)
+		local n = mk("TextLabel", {
+			Name = "N", Size = UDim2.new(1, 0, 0, 38), Position = UDim2.fromOffset(0, 60), BackgroundTransparency = 1, TextScaled = true,
 			TextColor3 = WHITE, TextStrokeTransparency = 0, TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
 		}, g)
-		mk("TextLabel", {
-			Name = "R", Size = UDim2.new(1, 0, 0.3, 0), Position = UDim2.new(0, 0, 0.66, 0), BackgroundTransparency = 1,
-			TextScaled = true, Font = Enum.Font.GothamBold, TextStrokeTransparency = 0, TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
+		mk("UITextSizeConstraint", { MaxTextSize = 30, MinTextSize = 10 }, n)
+		-- cargo numa etiqueta arredondada
+		local r = mk("TextLabel", {
+			Name = "R", Size = UDim2.fromOffset(132, 24), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 102),
+			BackgroundColor3 = Color3.fromRGB(14, 14, 20), BackgroundTransparency = 0.2, Font = Enum.Font.GothamBold, TextSize = 14,
+			TextColor3 = WHITE, TextTruncate = Enum.TextTruncate.AtEnd,
 		}, g)
+		mk("UICorner", { CornerRadius = UDim.new(1, 0) }, r)
+		mk("UIStroke", { Thickness = 1.5, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, r)
 		g.Parent = head
 	end
-	local n, r = g:FindFirstChild("N"), g:FindFirstChild("R")
+	g.Size = UDim2.fromOffset(240, 132)
+	local n, r, av = g:FindFirstChild("N"), g:FindFirstChild("R"), g:FindFirstChild("A")
+	local rs, avs = r and r:FindFirstChildOfClass("UIStroke"), av and av:FindFirstChildOfClass("UIStroke")
 	if n then n.Text = text; n.Font = Enum.Font[fontName] end
 	if r then r.Text = role end
+	if av and av.Image == "" then -- baixa a foto de perfil uma vez e guarda
+		local uid = (pl and pl.UserId) or lp.UserId
+		TAG.thumbs = TAG.thumbs or {}
+		if TAG.thumbs[uid] then
+			av.Image = TAG.thumbs[uid]
+		elseif not av:GetAttribute("Loading") then
+			av:SetAttribute("Loading", true)
+			task.spawn(function()
+				local ok, img = pcall(function()
+					return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+				end)
+				if ok and img then TAG.thumbs[uid] = img; if av.Parent then av.Image = img end end
+				if av.Parent then av:SetAttribute("Loading", nil) end
+			end)
+		end
+	end
 	if d.rgb == true then
 		g:SetAttribute("Rgb", true)
 		TAG.rgbStart()
 	else
 		g:SetAttribute("Rgb", nil)
+		local rc = tagRoleColor(role)
 		if n then n.TextColor3 = WHITE end
-		if r then r.TextColor3 = tagRoleColor(role) end
+		if r then r.TextColor3 = rc end
+		if rs then rs.Color = rc end
+		if avs then avs.Color = rc end
 	end
 end
 -- RGB: anima a cor de toda tag marcada com o atributo "Rgb" (a minha e as dos outros)
@@ -2830,7 +2962,7 @@ function TAG.rgbStart()
 							any = true
 							local n, r = g:FindFirstChild("N"), g:FindFirstChild("R")
 							if n then n.TextColor3 = c1 end
-							if r then r.TextColor3 = c2 end
+							if r then r.TextColor3 = c2; local rs_ = r:FindFirstChildOfClass("UIStroke"); if rs_ then rs_.Color = c2 end end; local a_ = g:FindFirstChild("A"); local as_ = a_ and a_:FindFirstChildOfClass("UIStroke"); if as_ then as_.Color = c1 end
 						end
 					end
 				end
@@ -2867,6 +2999,66 @@ function TAG.start()
 	end)
 end
 function TAG.stop() TAG.running = false end
+
+-- ===== aba Tag: letreiro em cima da cabeça (disponível em todos os jogos) =====
+function UI.buildTag(pages, say)
+	local page = pages["Tag"]
+	if not page then return end
+	local function inputRow(placeholder)
+		local row = mk("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = PANEL, BackgroundTransparency = 0.2 }, page)
+		round(row, 17); stroke(row, 1.5)
+		return mk("TextBox", {
+			Size = UDim2.new(1, -28, 1, -8), Position = UDim2.fromOffset(14, 4), BackgroundTransparency = 1,
+			Text = "", PlaceholderText = placeholder, PlaceholderColor3 = Color3.fromRGB(125, 130, 142),
+			TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false,
+			TextXAlignment = Enum.TextXAlignment.Left, ClipsDescendants = true,
+		}, row)
+	end
+	-- ===== Tag em cima da cabeça (só você e o ADM veem) =====
+	TAG.avail = true
+	TAG.start()
+	section(page, "Tag em cima da cabeça")
+	mk("TextLabel", {
+		Text = "Letreiro grande em cima de você. Se não escolher um nome, aparece o seu nome de exibição do Roblox. O cargo embaixo (Membro / Influenciador / Sub Dono / Dono) é o Dono quem define.",
+		Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(232, 234, 240),
+		Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+	}, page)
+	local _, setTagOn = toggleRow(page, "Mostrar tag", "Liga/desliga o letreiro", function(v)
+		TAG.on = v; TAG.refresh()
+		if TAG.push then TAG.push() end
+	end, TAG.on)
+	local tagBox = inputRow("Nome da tag (vazio = seu nome de exibição)")
+	tagBox.Text = TAG.text
+	local fontBtn, roleLbl
+	fontBtn = rowBtn(page, "Fonte: " .. TAG.font, function()
+		local i = table.find(TAG_FONTS, TAG.font) or 1
+		TAG.font = TAG_FONTS[i % #TAG_FONTS + 1]
+		fontBtn:FindFirstChildOfClass("TextLabel").Text = "Fonte: " .. TAG.font
+		TAG.refresh()
+		if TAG.push then TAG.push() end
+	end, true)
+	rowBtn(page, "Aplicar nome da tag", function()
+		local t = (tagBox.Text:gsub("^%s+", ""))
+		t = (t:gsub("%s+$", ""))
+		TAG.text = t:sub(1, 16)
+		TAG.refresh()
+		if TAG.push then TAG.push() end
+		say("Tag: " .. (TAG.text ~= "" and TAG.text or lp.DisplayName))
+	end, true)
+	roleLbl = mk("TextLabel", {
+		Text = "Cargo: " .. TAG.role .. " (definido pelo Dono)", Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1,
+		TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+	}, page)
+	TAG.onChanged = function()
+		tagBox.Text = TAG.text
+		fontBtn:FindFirstChildOfClass("TextLabel").Text = "Fonte: " .. TAG.font
+		roleLbl.Text = "Cargo: " .. TAG.role .. " (definido pelo Dono)"
+		setTagOn(TAG.on)
+	end
+
+end
+
 
 local function buildSelf(pages, say)
 	-- aba Scripts
@@ -4333,11 +4525,11 @@ do
 	}, box)
 	local pct = mk("TextLabel", {
 		Text = "0%", Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, 58), BackgroundTransparency = 1,
-		TextColor3 = Color3.fromRGB(255, 120, 125), Font = Enum.Font.GothamBold, TextSize = 26, TextStrokeTransparency = 0.5,
+		TextColor3 = Color3.fromRGB(190, 150, 255), Font = Enum.Font.GothamBold, TextSize = 26, TextStrokeTransparency = 0.5,
 	}, box)
 	local track = mk("Frame", { Size = UDim2.new(1, 0, 0, 12), Position = UDim2.fromOffset(0, 104), BackgroundColor3 = Color3.fromRGB(34, 35, 42), BackgroundTransparency = 0.1 }, box)
-	round(track, 6); stroke(track, 1.5)
-	local fill = mk("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = RED, BorderSizePixel = 0 }, track)
+	round(track, 6); stroke(track, 1.5, Color3.fromRGB(150, 98, 255))
+	local fill = mk("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(150, 98, 255), BorderSizePixel = 0 }, track)
 	round(fill, 6)
 
 	-- executor e versão (esta é a versão de membro)
@@ -4479,7 +4671,7 @@ local ACTIONS = {
 		end
 	end,
 	message = function(c)
-		if c and c.text and toast then toast(tostring(c.text):sub(1, 80)) end
+		if c and c.text and toast then toast(tostring(c.text):sub(1, 80), "Mensagem do admin") end
 	end,
 }
 
@@ -4925,7 +5117,7 @@ local function buildExtras(page, say)
 		if v and not fpsLbl then
 			fpsLbl = mk("TextLabel", {
 				Text = "FPS: --", Size = UDim2.fromOffset(80, 22), Position = UDim2.new(1, -90, 0, 8),
-				BackgroundColor3 = Color3.fromRGB(20, 21, 26), BackgroundTransparency = 0.3, TextColor3 = WHITE,
+				BackgroundColor3 = Color3.fromRGB(24, 24, 34), BackgroundTransparency = 0.3, TextColor3 = WHITE,
 				Font = Enum.Font.GothamBold, TextSize = 12,
 			}, gui)
 			round(fpsLbl, 8)
@@ -5115,6 +5307,24 @@ local function buildBrookhaven(pages, say)
 		if v and not findRE(COLOR_REMOTES) then say("Remote de cor não encontrado.") end
 	end)
 	sliderRow(page, "Velocidade RGB", "1 lento · 10 rápido", 1, 10, 5, function(v) speed = v end)
+
+	-- ao executar no Brookhaven: já coloca o nome de exibição da pessoa no nome e "Mystic Group" na bio
+	local AUTO_BIO = "Mystic Group"
+	local autoName = (lp.DisplayName and lp.DisplayName ~= "") and lp.DisplayName or lp.Name
+	nameBox.Text, bioBox.Text = autoName, AUTO_BIO
+	task.spawn(function()
+		local r
+		for _ = 1, 40 do -- espera o remote aparecer (o jogo pode demorar a carregar)
+			r = findRE(NAME_REMOTES)
+			if r then break end
+			task.wait(0.5)
+		end
+		if not r or not alive then return end
+		task.wait(1)
+		pcall(function() r:FireServer("RolePlayName", autoName) end)
+		task.wait(0.4)
+		pcall(function() r:FireServer("RolePlayBio", AUTO_BIO) end)
+	end)
 
 	task.spawn(function()
 		while alive do
@@ -5420,50 +5630,6 @@ local function buildBrookhaven(pages, say)
 		end
 	end)
 
-	-- ===== Tag em cima da cabeça (só você e o ADM veem) =====
-	page = pages["Tag"]
-	TAG.avail = true
-	TAG.start()
-	section(page, "Tag em cima da cabeça")
-	mk("TextLabel", {
-		Text = "Letreiro grande em cima de você. Se não escolher um nome, aparece o seu nome de exibição do Roblox. O cargo embaixo (Membro / Influenciador / Sub Dono / Dono) é o Dono quem define.",
-		Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(232, 234, 240),
-		Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
-	}, page)
-	local _, setTagOn = toggleRow(page, "Mostrar tag", "Liga/desliga o letreiro", function(v)
-		TAG.on = v; TAG.refresh()
-		if TAG.push then TAG.push() end
-	end, TAG.on)
-	local tagBox = inputRow("Nome da tag (vazio = seu nome de exibição)")
-	tagBox.Text = TAG.text
-	local fontBtn, roleLbl
-	fontBtn = rowBtn(page, "Fonte: " .. TAG.font, function()
-		local i = table.find(TAG_FONTS, TAG.font) or 1
-		TAG.font = TAG_FONTS[i % #TAG_FONTS + 1]
-		fontBtn:FindFirstChildOfClass("TextLabel").Text = "Fonte: " .. TAG.font
-		TAG.refresh()
-		if TAG.push then TAG.push() end
-	end, true)
-	rowBtn(page, "Aplicar nome da tag", function()
-		local t = (tagBox.Text:gsub("^%s+", ""))
-		t = (t:gsub("%s+$", ""))
-		TAG.text = t:sub(1, 16)
-		TAG.refresh()
-		if TAG.push then TAG.push() end
-		say("Tag: " .. (TAG.text ~= "" and TAG.text or lp.DisplayName))
-	end, true)
-	roleLbl = mk("TextLabel", {
-		Text = "Cargo: " .. TAG.role .. " (definido pelo Dono)", Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1,
-		TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
-	}, page)
-	TAG.onChanged = function()
-		tagBox.Text = TAG.text
-		fontBtn:FindFirstChildOfClass("TextLabel").Text = "Fonte: " .. TAG.font
-		roleLbl.Text = "Cargo: " .. TAG.role .. " (definido pelo Dono)"
-		setTagOn(TAG.on)
-	end
-
 	table.insert(conns, { Disconnect = function() alive = false end })
 end
 
@@ -5511,7 +5677,7 @@ local function inGame(name)
 	return false
 end
 -- abas do Brookhaven: cada função é uma aba normal, só aparecem no jogo Brookhaven
-local BROOKHAVEN_TABS = { "Nome", "Música", "Tag", "Proteções", "Movimento", "Blocos", "Car", "Avatar" }
+local BROOKHAVEN_TABS = { "Nome", "Música", "Proteções", "Movimento", "Blocos", "Car", "Avatar" }
 local function buildTabs(last)
 	local t = { "ID", "Créditos", "Scripts" } -- ID e Créditos ficam no início
 	if inGame("Brookhaven") then
@@ -5522,7 +5688,7 @@ local function buildTabs(last)
 	if inGame("Evade") then table.insert(t, "Evade") end
 	if inGame("Grau SP") then table.insert(t, "Motos") end
 	if inGame("Sintonia RP") then table.insert(t, "Sintonia RP") end
-	for _, n in ipairs({ "Mod", "Efeitos", "Extras" }) do table.insert(t, n) end -- comuns aos dois jogos
+	for _, n in ipairs({ "Tag", "Mod", "Efeitos", "Extras" }) do table.insert(t, n) end -- comuns aos dois jogos
 	for _, n in ipairs(last) do table.insert(t, n) end
 	return t
 end
@@ -8040,7 +8206,7 @@ local function buildId(page, say)
 	-- cartão de perfil compacto: foto + nome, sem caixas
 	local card = mk("Frame", { Size = UDim2.new(1, 0, 0, 64), BackgroundTransparency = 1 }, page)
 	local av = mk("ImageLabel", {
-		Size = UDim2.fromOffset(54, 54), Position = UDim2.fromOffset(4, 5), BackgroundColor3 = Color3.fromRGB(20, 21, 26),
+		Size = UDim2.fromOffset(54, 54), Position = UDim2.fromOffset(4, 5), BackgroundColor3 = Color3.fromRGB(24, 24, 34),
 		Image = "", ScaleType = Enum.ScaleType.Crop,
 	}, card)
 	mk("UICorner", { CornerRadius = UDim.new(1, 0) }, av)
@@ -8904,7 +9070,10 @@ end
 UI.buildSintonia = function(page, say)
 	local NAME = "Sintonia RP"
 	local offAll
-	local S = { alive = true, aim = false, firing = false, circle = false, rgb = false, fovOn = false, fov = 70, radius = 120, base = nil, open = false }
+	local S = {
+		alive = true, aim = false, firing = false, aimPart = "head", circle = false, rgb = false, fovOn = false, fov = 70, radius = 120, base = nil, open = false,
+		espBox = false, espLine = false, espName = false, espDist = false, espSkeleton = false,
+	}
 	local function cam() return workspace.CurrentCamera end
 	local function hasRole() return true end
 
@@ -8931,7 +9100,17 @@ UI.buildSintonia = function(page, say)
 	mk("UICorner", { CornerRadius = UDim.new(0.5, 0) }, ring)
 	local ringStroke = mk("UIStroke", { Thickness = 2, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ring)
 
-	-- quem está dentro do círculo (mais perto do centro ganha)
+	-- acha o osso certo pro aimbot (cabeça / peito / pé), com fallback pro R6 (sem "Foot": usa a perna)
+	local function findBone(ch, which)
+		if which == "chest" then return ch:FindFirstChild("UpperTorso") or ch:FindFirstChild("Torso")
+		elseif which == "foot" then
+			return ch:FindFirstChild("LeftFoot") or ch:FindFirstChild("RightFoot")
+				or ch:FindFirstChild("Left Leg") or ch:FindFirstChild("Right Leg")
+		end
+		return ch:FindFirstChild("Head")
+	end
+
+	-- quem está dentro do círculo (mais perto do centro ganha; o círculo sempre mede pela cabeça, só o PONTO de mira muda)
 	local function pickTarget()
 		local c = cam()
 		if not c then return nil end
@@ -8947,7 +9126,10 @@ UI.buildSintonia = function(page, say)
 					local p, on = c:WorldToViewportPoint(head.Position)
 					if on and p.Z > 0 then
 						local d = (Vector2.new(p.X, p.Y) - center).Magnitude
-						if d <= bestD then best, bestD = head, d end
+						if d <= bestD then
+							bestD = d
+							best = findBone(ch, S.aimPart) or head
+						end
 					end
 				end
 			end
@@ -8955,11 +9137,167 @@ UI.buildSintonia = function(page, say)
 		return best
 	end
 
+	-- ===== ESP (linha, nome, caixa, esqueleto, distância) =====
+	local BONES_R15 = {
+		{ "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" },
+		{ "UpperTorso", "LeftUpperArm" }, { "LeftUpperArm", "LeftLowerArm" }, { "LeftLowerArm", "LeftHand" },
+		{ "UpperTorso", "RightUpperArm" }, { "RightUpperArm", "RightLowerArm" }, { "RightLowerArm", "RightHand" },
+		{ "LowerTorso", "LeftUpperLeg" }, { "LeftUpperLeg", "LeftLowerLeg" }, { "LeftLowerLeg", "LeftFoot" },
+		{ "LowerTorso", "RightUpperLeg" }, { "RightUpperLeg", "RightLowerLeg" }, { "RightLowerLeg", "RightFoot" },
+	}
+	local BONES_R6 = {
+		{ "Head", "Torso" }, { "Torso", "Left Arm" }, { "Torso", "Right Arm" }, { "Torso", "Left Leg" }, { "Torso", "Right Leg" },
+	}
+	local oldEsp = parent:FindFirstChild("ShinSintoniaEsp")
+	if oldEsp then oldEsp:Destroy() end
+	local espGui = mk("ScreenGui", { Name = "ShinSintoniaEsp", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 40 }, parent)
+	local espPool = {} -- [Player] = { box, boxStroke, nameLbl, distLbl, tracer, bones = {Frame, ...} }
+	local function espLine()
+		return mk("Frame", {
+			BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = RED, Visible = false, ZIndex = 2,
+		}, espGui)
+	end
+	local function drawLine(f, a, b)
+		local delta = b - a
+		local dist = delta.Magnitude
+		if dist < 1 then f.Visible = false; return end
+		f.Visible = true
+		f.Position = UDim2.fromOffset(a.X, a.Y)
+		f.Size = UDim2.fromOffset(dist, 1.4)
+		f.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+	end
+	local function espEntry()
+		local box = mk("Frame", { BackgroundTransparency = 1, Visible = false, ZIndex = 2 }, espGui)
+		local boxStroke = mk("UIStroke", { Thickness = 1.3, Color = RED, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, box)
+		local nameLbl = mk("TextLabel", {
+			BackgroundTransparency = 1, Visible = false, Font = Enum.Font.GothamBold, TextSize = 12,
+			TextColor3 = WHITE, TextStrokeTransparency = 0.3, Size = UDim2.fromOffset(140, 14), ZIndex = 2,
+		}, espGui)
+		local distLbl = mk("TextLabel", {
+			BackgroundTransparency = 1, Visible = false, Font = Enum.Font.GothamBold, TextSize = 11,
+			TextColor3 = Color3.fromRGB(220, 220, 225), TextStrokeTransparency = 0.3, Size = UDim2.fromOffset(90, 14), ZIndex = 2,
+		}, espGui)
+		local tracer = espLine()
+		local bones = {}
+		for i = 1, #BONES_R15 do bones[i] = espLine() end
+		return { box = box, boxStroke = boxStroke, nameLbl = nameLbl, distLbl = distLbl, tracer = tracer, bones = bones }
+	end
+	local function hideEntry(e)
+		e.box.Visible = false; e.nameLbl.Visible = false; e.distLbl.Visible = false; e.tracer.Visible = false
+		for _, ln in ipairs(e.bones) do ln.Visible = false end
+	end
+	local function destroyEntry(e)
+		pcall(function() e.box:Destroy() end)
+		pcall(function() e.nameLbl:Destroy() end)
+		pcall(function() e.distLbl:Destroy() end)
+		pcall(function() e.tracer:Destroy() end)
+		for _, ln in ipairs(e.bones) do pcall(function() ln:Destroy() end) end
+	end
+	local espRemovingConn = Players.PlayerRemoving:Connect(function(pl)
+		local e = espPool[pl]
+		if e then destroyEntry(e); espPool[pl] = nil end
+	end)
+	local function updateEsp(roleOk, c)
+		local anyOn = roleOk and (S.espBox or S.espLine or S.espName or S.espDist or S.espSkeleton)
+		if not anyOn or not c then
+			for _, e in pairs(espPool) do hideEntry(e) end
+			return
+		end
+		local vs = c.ViewportSize
+		local bottom = Vector2.new(vs.X / 2, vs.Y)
+		local seen = {}
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl ~= lp then
+				local ch = pl.Character
+				local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+				local root = ch and ch:FindFirstChild("HumanoidRootPart")
+				if ch and hum and root and hum.Health > 0 then
+					seen[pl] = true
+					local e = espPool[pl]
+					if not e then e = espEntry(); espPool[pl] = e end
+					local okBox, cf, size = pcall(function() return ch:GetBoundingBox() end)
+					local minX, minY, maxX, maxY, shown = math.huge, math.huge, -math.huge, -math.huge, false
+					if okBox then
+						local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
+						for _, wp in ipairs({
+							cf * Vector3.new(hx, hy, hz), cf * Vector3.new(-hx, hy, hz), cf * Vector3.new(hx, hy, -hz), cf * Vector3.new(-hx, hy, -hz),
+							cf * Vector3.new(hx, -hy, hz), cf * Vector3.new(-hx, -hy, hz), cf * Vector3.new(hx, -hy, -hz), cf * Vector3.new(-hx, -hy, -hz),
+						}) do
+							local p, on = c:WorldToViewportPoint(wp)
+							if on and p.Z > 0 then
+								shown = true
+								if p.X < minX then minX = p.X end; if p.X > maxX then maxX = p.X end
+								if p.Y < minY then minY = p.Y end; if p.Y > maxY then maxY = p.Y end
+							end
+						end
+					end
+					if shown then
+						if S.espBox then
+							e.box.Visible = true
+							e.box.Position = UDim2.fromOffset(minX, minY)
+							e.box.Size = UDim2.fromOffset(maxX - minX, maxY - minY)
+						else
+							e.box.Visible = false
+						end
+						if S.espName then
+							e.nameLbl.Visible = true
+							e.nameLbl.Text = pl.Name
+							e.nameLbl.Position = UDim2.fromOffset((minX + maxX) / 2 - 70, minY - 16)
+						else
+							e.nameLbl.Visible = false
+						end
+						if S.espDist then
+							local d = (root.Position - c.CFrame.Position).Magnitude
+							e.distLbl.Visible = true
+							e.distLbl.Text = string.format("%dm", math.floor(d))
+							e.distLbl.Position = UDim2.fromOffset((minX + maxX) / 2 - 45, maxY + 2)
+						else
+							e.distLbl.Visible = false
+						end
+						if S.espLine then
+							local rp, ron = c:WorldToViewportPoint(root.Position)
+							if ron and rp.Z > 0 then drawLine(e.tracer, bottom, Vector2.new(rp.X, rp.Y)) else e.tracer.Visible = false end
+						else
+							e.tracer.Visible = false
+						end
+					else
+						e.box.Visible = false; e.nameLbl.Visible = false; e.distLbl.Visible = false; e.tracer.Visible = false
+					end
+					if S.espSkeleton and shown then
+						local bones = (hum.RigType == Enum.HumanoidRigType.R6) and BONES_R6 or BONES_R15
+						for i, ln in ipairs(e.bones) do
+							local pair = bones[i]
+							local p1 = pair and ch:FindFirstChild(pair[1])
+							local p2 = pair and ch:FindFirstChild(pair[2])
+							if p1 and p2 then
+								local a, aon = c:WorldToViewportPoint(p1.Position)
+								local b2, bon = c:WorldToViewportPoint(p2.Position)
+								if aon and bon and a.Z > 0 and b2.Z > 0 then
+									drawLine(ln, Vector2.new(a.X, a.Y), Vector2.new(b2.X, b2.Y))
+								else
+									ln.Visible = false
+								end
+							else
+								ln.Visible = false
+							end
+						end
+					else
+						for _, ln in ipairs(e.bones) do ln.Visible = false end
+					end
+				end
+			end
+		end
+		for pl, e in pairs(espPool) do
+			if not seen[pl] then hideEntry(e) end
+		end
+	end
+
 	local function restoreFov()
 		local c = cam()
 		if c and S.base then c.FieldOfView = S.base end
 		S.base = nil
 	end
+	local setAim = function(v) S.aim = v end -- reatribuída pra real quando o toggleRow (lá embaixo) é criado
 
 	RunService:BindToRenderStep("ShinSintoniaAim", Enum.RenderPriority.Camera.Value + 1, function()
 		if not S.alive then return end
@@ -8969,6 +9307,7 @@ UI.buildSintonia = function(page, say)
 		if ring.Visible then
 			ringStroke.Color = S.rgb and Color3.fromHSV((os.clock() * 0.4) % 1, 1, 1) or WHITE
 		end
+		updateEsp(ok, c)
 		if not (ok and c) then return end
 		if S.fovOn then c.FieldOfView = S.fov end
 		if S.aim and S.firing then
@@ -8977,10 +9316,88 @@ UI.buildSintonia = function(page, say)
 		end
 	end)
 
+	-- botão flutuante só da trava (aimbot): ativa/desativa sem precisar abrir o menu
+	local paintAimBtn = function() end
+	local aimBtnRoot
+	do
+		local POS_FILE = FOLDER .. "/sintonia_trava_pos.json"
+		local SIZE, MARGIN = 44, 8
+		local function areaSize()
+			local a = gui.AbsoluteSize
+			if a.X < 50 or a.Y < 50 then
+				local c = workspace.CurrentCamera
+				a = c and c.ViewportSize or Vector2.new(800, 600)
+			end
+			return a
+		end
+		local function clampPos(x, y)
+			local a = areaSize()
+			return math.clamp(x, MARGIN, math.max(MARGIN, a.X - SIZE - MARGIN)), math.clamp(y, MARGIN, math.max(MARGIN, a.Y - SIZE - MARGIN))
+		end
+		local sx, sy = MARGIN + 2, MARGIN + 160
+		pcall(function()
+			if isfile and readfile and isfile(POS_FILE) then
+				local d = HttpService:JSONDecode(readfile(POS_FILE))
+				local a = areaSize()
+				if type(d.x) == "number" and type(d.y) == "number" then sx, sy = d.x * a.X, d.y * a.Y end
+			end
+		end)
+		sx, sy = clampPos(sx, sy)
+		local root = mk("Frame", { Size = UDim2.fromOffset(SIZE, SIZE), Position = UDim2.fromOffset(sx, sy), BackgroundTransparency = 1, Visible = false }, gui)
+		aimBtnRoot = root
+		local b = mk("TextButton", {
+			Text = "", AutoButtonColor = false, Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.fromRGB(16, 17, 22), BackgroundTransparency = 0.05,
+		}, root)
+		round(b, 10)
+		local st = mk("UIStroke", { Thickness = 2, Color = UI.EDGE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+		local ic = mk("TextLabel", {
+			Text = "⌖", Size = UDim2.new(1, 0, 1, -12), BackgroundTransparency = 1,
+			TextColor3 = UI.DIM, Font = Enum.Font.GothamBlack, TextSize = 22,
+		}, b)
+		mk("TextLabel", {
+			Text = "TRAVA", Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -13), BackgroundTransparency = 1,
+			TextColor3 = UI.SOFT, Font = Enum.Font.GothamBold, TextSize = 8,
+		}, b)
+		paintAimBtn = function()
+			local on = S.aim
+			st.Color = on and RED or UI.EDGE
+			ic.TextColor3 = on and WHITE or UI.DIM
+			b.BackgroundColor3 = on and Color3.fromRGB(46, 16, 20) or Color3.fromRGB(16, 17, 22)
+		end
+		local function clampBtn(t)
+			local x, y = clampPos(t.Position.X.Offset, t.Position.Y.Offset)
+			t.Position = UDim2.fromOffset(x, y)
+		end
+		local function snap(t)
+			local a = areaSize()
+			local x, y = clampPos(t.Position.X.Offset, t.Position.Y.Offset)
+			local toLeft = (x + SIZE / 2) < a.X / 2
+			x = toLeft and MARGIN or (a.X - SIZE - MARGIN)
+			UI.tween(t, 0.22, { Position = UDim2.fromOffset(x, y) })
+			pcall(function()
+				if writefile then
+					if not (isfolder and isfolder(FOLDER)) and makefolder then makefolder(FOLDER) end
+					writefile(POS_FILE, HttpService:JSONEncode({ x = x / a.X, y = y / a.Y }))
+				end
+			end)
+		end
+		makeDraggable(b, root, function()
+			S.aim = not S.aim
+			paintAimBtn()
+			pcall(setAim, S.aim)
+		end, snap, clampBtn)
+		table.insert(conns, gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			pcall(function() clampBtn(root); snap(root) end)
+		end))
+		paintAimBtn()
+	end
+
 	-- libera/esconde a aba conforme o cargo (checa a cada 1s; o cargo vem do Dono)
 	task.spawn(function()
 		while S.alive do
 			local ok = hasRole()
+			if aimBtnRoot then aimBtnRoot.Visible = ok end
 			if ok ~= S.open then
 				S.open = ok
 				UI.open[NAME] = ok
@@ -8995,7 +9412,17 @@ UI.buildSintonia = function(page, say)
 	end)
 
 	section(page, "Aimbot")
-	local _, setAim = toggleRow(page, "Aimbot (cabeça)", "Só gruda na cabeça enquanto você está atirando (clique/toque), quem estiver dentro do círculo", function(v) S.aim = v end)
+	local _
+	_, setAim = toggleRow(page, "Aimbot (cabeça)", "Só gruda na cabeça enquanto você está atirando (clique/toque), quem estiver dentro do círculo", function(v) S.aim = v; pcall(paintAimBtn) end)
+	pickerRow(page, "Mirar em", "Onde o aimbot gruda quando está atirando", { "Cabeça", "Peito", "Pé" }, 1, function(name)
+		S.aimPart = name == "Peito" and "chest" or (name == "Pé" and "foot" or "head")
+	end)
+	section(page, "ESP")
+	toggleRow(page, "ESP linha", "Puxa uma linha do pé da tela até cada jogador", function(v) S.espLine = v end)
+	toggleRow(page, "ESP nome", "Mostra o nome de cada jogador por cima dele", function(v) S.espName = v end)
+	toggleRow(page, "ESP caixa", "Desenha uma caixa em volta de cada jogador", function(v) S.espBox = v end)
+	toggleRow(page, "ESP esqueleto", "Desenha os ossos (braços, pernas, tronco) de cada jogador", function(v) S.espSkeleton = v end)
+	toggleRow(page, "ESP distância", "Mostra a distância em metros até cada jogador", function(v) S.espDist = v end)
 	section(page, "Círculo FOV")
 	toggleRow(page, "Mostrar círculo", "Círculo no centro da tela (é a área do aimbot)", function(v) S.circle = v end)
 	sliderRow(page, "Tamanho do círculo", "Raio em pixels", 40, 400, 120, function(v)
@@ -9085,18 +9512,24 @@ UI.buildSintonia = function(page, say)
 		pcall(function() invConn:Disconnect() end)
 		pcall(function() fireBeganConn:Disconnect() end)
 		pcall(function() fireEndedConn:Disconnect() end)
+		pcall(function() espRemovingConn:Disconnect() end)
 		for ch, isSelf in pairs(hiddenChars) do pcall(applyInv, ch, false, isSelf) end
 		if MINE.inv then MINE.inv = nil; if publishMods then pcall(publishMods) end end
 		pcall(function() RunService:UnbindFromRenderStep("ShinSintoniaAim") end)
 		pcall(restoreFov)
 		pcall(function() cg:Destroy() end)
+		pcall(function() espGui:Destroy() end)
+		pcall(function() aimBtnRoot:Destroy() end)
 	end
 end
 
-local win, pages, say = buildWindow(600, 360, "Mystic Menu", "Membro", buildTabs({}))
+local win, pages, say = buildWindow(600, 360, "Mystic Menu", "Membro", buildTabs({}), function()
+	if UI.askClose then UI.askClose() end
+end)
 selfCleanup = buildSelf(pages, say)
 if pages["Itens"] then buildItens(pages["Itens"], say) end
 local stopProt = pages["Proteções"] and buildProtExtra(pages["Proteções"], say)
+UI.buildTag(pages, say)
 if pages["Nome"] then buildBrookhaven(pages, say) end
 local stopCar = pages["Car"] and buildCar(pages["Car"], say)
 local stopMotos = pages["Motos"] and buildMotos(pages["Motos"], say)
@@ -9117,18 +9550,80 @@ end
 -- (a aba Conexão saiu do menu; o status continua sendo atualizado num texto interno e o "Desativar" foi pra aba Extras)
 local shutdown
 local info = mk("TextLabel", { Text = "Conectando...", Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1 }, nil)
-if pages["Extras"] then
-	rowBtn(pages["Extras"], "Desativar (sair do painel)", function() if shutdown then shutdown() end end)
-end
+-- (o Desativar saiu do Extras: agora o X do menu pergunta Sim/Não pra sair do hub)
 
--- aviso rápido na tela quando o admin usa um comando
-function toast(t)
-	local l = mk("TextLabel", {
-		Text = t, Size = UDim2.fromOffset(260, 40), Position = UDim2.new(0.5, -130, 0, 60), TextWrapped = true,
-		BackgroundColor3 = Color3.fromRGB(46, 48, 58), TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 12,
+-- notificação no canto da tela (estilo aviso do Roblox): translúcida, entra deslizando pela direita e sai sozinha
+UI.toasts = {}
+function toast(t, title)
+	local W = 280
+	t = tostring(t or "")
+	local textW = W - 76
+	local th = 14
+	pcall(function()
+		local sz = game:GetService("TextService"):GetTextSize(t, 12, Enum.Font.Gotham, Vector2.new(textW, 1000))
+		th = math.clamp(sz.Y, 14, 56)
+	end)
+	local H = 34 + th + 10
+	local card = mk("Frame", {
+		Name = "Notificacao", Size = UDim2.fromOffset(W, H), AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, W + 24, 0, 40), BackgroundColor3 = Color3.fromRGB(22, 22, 30), BackgroundTransparency = 0.22,
+		BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 60,
 	}, gui)
-	round(l, 10); stroke(l, 1.5)
-	task.delay(4, function() l:Destroy() end)
+	round(card, 12)
+	mk("UIStroke", { Thickness = 1, Color = UI.EDGE, Transparency = 0.4, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, card)
+	-- ícone (mago do hub; se não carregar, fica um "!")
+	local ic = mk("Frame", { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(12, 12), BackgroundColor3 = Color3.fromRGB(34, 34, 46), BorderSizePixel = 0, ZIndex = 61 }, card)
+	round(ic, 20)
+	local bang = mk("TextLabel", { Text = "!", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextColor3 = UI.GLOW, Font = Enum.Font.GothamBlack, TextSize = 20, ZIndex = 62 }, ic)
+	local img = mk("ImageLabel", { Size = UDim2.new(1, -8, 1, -8), Position = UDim2.fromOffset(4, 4), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Image = "", ZIndex = 62 }, ic)
+	if ICON_URL:find("^http") then
+		task.spawn(function()
+			local v, kind = fetchAssetCutout(ICON_URL, "mystic_mago.png")
+			if v and img.Parent then
+				pcall(function() if kind == "content" then img.ImageContent = v else img.Image = v end end)
+				bang.Visible = false
+			end
+		end)
+	end
+	mk("TextLabel", {
+		Text = tostring(title or "Mystic Menu"), Size = UDim2.new(1, -72, 0, 16), Position = UDim2.fromOffset(60, 9), BackgroundTransparency = 1,
+		TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 61,
+	}, card)
+	mk("TextLabel", {
+		Text = t, Size = UDim2.new(1, -72, 0, th), Position = UDim2.fromOffset(60, 27), BackgroundTransparency = 1, TextWrapped = true,
+		TextColor3 = Color3.fromRGB(205, 208, 222), Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 61,
+	}, card)
+	-- barrinha de tempo no fundo
+	local bar = mk("Frame", { Size = UDim2.new(1, 0, 0, 2), Position = UDim2.new(0, 0, 1, -2), BackgroundColor3 = UI.GLOW, BackgroundTransparency = 0.2, BorderSizePixel = 0, ZIndex = 61 }, card)
+
+	local item = { card = card, h = H }
+	local function relayout()
+		local y = 40
+		for _, it in ipairs(UI.toasts) do
+			UI.tween(it.card, 0.22, { Position = UDim2.new(1, -12, 0, y) })
+			y = y + it.h + 8
+		end
+	end
+	local gone = false
+	local function dismiss()
+		if gone then return end
+		gone = true
+		local k = table.find(UI.toasts, item)
+		if k then table.remove(UI.toasts, k) end
+		UI.tween(card, 0.25, { Position = UDim2.new(1, W + 24, 0, card.Position.Y.Offset), BackgroundTransparency = 1 })
+		relayout()
+		task.delay(0.3, function() card:Destroy() end)
+	end
+	table.insert(UI.toasts, item)
+	if #UI.toasts > 4 then
+		local first = UI.toasts[1]
+		if first and first.dismiss then first.dismiss() end
+	end
+	item.dismiss = dismiss
+	relayout()
+	UI.tween(bar, 4.2, { Size = UDim2.new(0, 0, 0, 2) })
+	task.delay(4.2, dismiss)
 end
 
 UI.float = floatButton(function() win.Visible = not win.Visible end, win)
@@ -9231,7 +9726,7 @@ task.spawn(function()
 				local fn = ACTIONS[c.action]
 				if fn and c.job == game.JobId then
 					info.Text = "Admin usou: " .. tostring(c.action)
-					toast("Admin usou: " .. tostring(c.action))
+					toast("Usou o comando: " .. tostring(c.action), "Admin")
 					pcall(fn, c)
 				end
 			end
@@ -9423,7 +9918,7 @@ do
 		pf.Visible = false
 		local top = mk("Frame", {
 			Size = UDim2.new(1, -12, 0, 36), Position = UDim2.fromOffset(6, 6),
-			BackgroundColor3 = Color3.fromRGB(20, 21, 26), BackgroundTransparency = 0.15, BorderSizePixel = 0,
+			BackgroundColor3 = Color3.fromRGB(24, 24, 34), BackgroundTransparency = 0.15, BorderSizePixel = 0,
 		}, pf)
 		round(top, 12)
 		mk("TextLabel", { Text = "Painel ADM", Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
@@ -9502,7 +9997,7 @@ do
 		popup = ov
 		local box = mk("Frame", {
 			Size = UDim2.fromOffset(300, 132), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-			BackgroundColor3 = Color3.fromRGB(20, 21, 26), BorderSizePixel = 0, ZIndex = 101,
+			BackgroundColor3 = Color3.fromRGB(24, 24, 34), BorderSizePixel = 0, ZIndex = 101,
 		}, ov)
 		round(box, 14); stroke(box, 1.5, RED)
 		popupMsg = mk("TextLabel", {
@@ -9524,6 +10019,39 @@ do
 			if ok then openPanel() end -- sem liberação: só fecha, igual ao Cancelar
 		end)
 	end
+
+	-- ===== confirmação ao clicar no X: mesmo popup do painel ADM, fixo dentro do menu =====
+	local function showAsk()
+		closePopup()
+		local ov = mk("Frame", {
+			Name = "PainelAdmPopup", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.45,
+			BorderSizePixel = 0, Active = true, ZIndex = 100,
+		}, win)
+		popup, popupMsg = ov, nil
+		local box = mk("Frame", {
+			Size = UDim2.fromOffset(300, 132), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+			BackgroundColor3 = Color3.fromRGB(24, 24, 34), BorderSizePixel = 0, ZIndex = 101,
+		}, ov)
+		round(box, 14); stroke(box, 1.5, RED)
+		mk("TextLabel", {
+			Text = "Deseja sair do hub?", Size = UDim2.new(1, -24, 0, 60), Position = UDim2.fromOffset(12, 12), BackgroundTransparency = 1,
+			TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 14, TextWrapped = true, ZIndex = 102,
+		}, box)
+		local function abtn(text, x, filled, cb)
+			local b = mk("TextButton", {
+				Text = text, Size = UDim2.fromOffset(130, 34), Position = UDim2.fromOffset(x, 84), AutoButtonColor = false,
+				BackgroundColor3 = filled and RED or PANEL, TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 102,
+			}, box)
+			round(b, 10); stroke(b, 1.2)
+			b.MouseButton1Click:Connect(cb)
+		end
+		abtn("Não", 14, false, closePopup)
+		abtn("Sim", 156, true, function()
+			closePopup()
+			if shutdown then shutdown() end
+		end)
+	end
+	UI.askClose = showAsk
 
 	-- ===== liberação por ID (o Dono grava em /cmd/panel_<seuID> com a hora de expiração) =====
 	local function setActive(v)
