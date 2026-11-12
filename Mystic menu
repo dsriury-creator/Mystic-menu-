@@ -2555,7 +2555,10 @@ local function buildMods(page, say)
 
 	-- registro "velho" (quem saiu do jogo, fechou o hub ou teleportou) para de mandar sinal e some pra todo mundo
 	local seenB = {}
-	local function isFresh(id, rec)
+	-- "fresco" por carimbo do PRÓPRIO Firebase (.sv:timestamp), não pelo relógio de cada aparelho: isso
+	-- era o motivo da tag/mods de outra pessoa às vezes nunca aparecerem (relógio dela adiantado/atrasado
+	-- fazia o registro parecer "velho" na hora, mesmo chegando certinho).
+	local function isFresh(id, rec, serverNow)
 		local now = os.clock()
 		local s = seenB[id]
 		if not s or s.beat ~= rec.beat then
@@ -2563,9 +2566,11 @@ local function buildMods(page, say)
 			s = seenB[id]
 		end
 		if now - s.at > 25 then return false end -- sem sinal há mais de 25s
+		local ts = tonumber(rec.ts)
+		if ts and serverNow and serverNow > 0 then return (serverNow - ts) <= 90000 end
 		local t = tonumber(rec.t)
 		if t and math.abs(os.time() - t) <= 90 then return true end
-		return s.moved -- relógio muito diferente: só confia depois de ver o sinal mudar
+		return s.moved -- sem carimbo de servidor pra comparar: só confia depois de ver o sinal mudar
 	end
 
 	-- aplica (só visualmente, no seu aparelho) os mods de todo mundo que está com o hub ativo
@@ -2635,8 +2640,13 @@ local function buildMods(page, say)
 				DSLOG.err("sync", "resposta do Firebase não é JSON: " .. tostring(body):sub(1, 60))
 			end
 		end
+		local serverNow = 0
+		for _, rec in pairs(data) do
+			local ts = type(rec) == "table" and tonumber(rec.ts)
+			if ts and ts > serverNow then serverNow = ts end
+		end
 		for id, rec in pairs(data) do
-			if type(rec) ~= "table" or not isFresh(id, rec) then data[id] = nil end
+			if type(rec) ~= "table" or not isFresh(id, rec, serverNow) then data[id] = nil end
 		end
 		-- quem está invisível (o Hub de cada um esconde esses jogadores na tela dele; ver aba Sintonia RP)
 		local invSet = {}
@@ -9861,7 +9871,18 @@ do
 		local body = { id = HttpService:GenerateGUID(false), action = action, job = game.JobId, by = lp.Name, rid = uid }
 		if extra then for k, v in pairs(extra) do body[k] = v end end
 		local r = http("PUT", "/cmd/" .. tid .. ".json", body)
-		if r == nil then return false, lastErr end
+		if r == nil then
+			-- "Permission denied" (HTTP 401): o Firebase exige que SEU registro em /members esteja fresco e
+			-- com o mesmo "job" (servidor) de quem você está mirando. Se o seu sinal demorou a chegar
+			-- (rede instável), seu registro pode ter ficado velho bem na hora de mandar o comando.
+			-- Atualiza o seu registro e tenta mandar de novo, uma vez, antes de desistir.
+			if tostring(lastErr):find("401") and pushPresence then
+				pcall(pushPresence)
+				task.wait(0.3)
+				r = http("PUT", "/cmd/" .. tid .. ".json", body)
+			end
+			if r == nil then return false, lastErr end
+		end
 		return true
 	end
 	local function runCmd(action, tid, tname, text)
@@ -9876,7 +9897,7 @@ do
 			extra = { text = text:sub(1, 80) }
 		end
 		local ok, why = sendTo(tid, action, extra)
-		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 40)) end
+		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 90)) end
 	end
 
 	-- ===== popup (dentro do painel verdadeiro, fixo) =====
