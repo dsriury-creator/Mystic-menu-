@@ -2897,13 +2897,13 @@ function tagDraw(char, d, nm)
 		mk("UICorner", { CornerRadius = UDim.new(1, 0) }, av)
 		mk("UIStroke", { Thickness = 3, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, av)
 		local n = mk("TextLabel", {
-			Name = "N", Size = UDim2.new(1, 0, 0, 38), Position = UDim2.fromOffset(0, 60), BackgroundTransparency = 1, TextScaled = true,
+			Name = "N", AutoLocalize = false, Size = UDim2.new(1, 0, 0, 38), Position = UDim2.fromOffset(0, 60), BackgroundTransparency = 1, TextScaled = true,
 			TextColor3 = WHITE, TextStrokeTransparency = 0, TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
 		}, g)
 		mk("UITextSizeConstraint", { MaxTextSize = 30, MinTextSize = 10 }, n)
 		-- cargo numa etiqueta arredondada
 		local r = mk("TextLabel", {
-			Name = "R", Size = UDim2.fromOffset(132, 24), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 102),
+			Name = "R", AutoLocalize = false, Size = UDim2.fromOffset(132, 24), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 102),
 			BackgroundColor3 = Color3.fromRGB(14, 14, 20), BackgroundTransparency = 0.2, Font = Enum.Font.GothamBold, TextSize = 14,
 			TextColor3 = WHITE, TextTruncate = Enum.TextTruncate.AtEnd,
 		}, g)
@@ -3044,7 +3044,7 @@ function UI.buildTag(pages, say)
 		TAG.text = t:sub(1, 16)
 		TAG.refresh()
 		if TAG.push then TAG.push() end
-		say("Tag: " .. (TAG.text ~= "" and TAG.text or lp.DisplayName))
+		task.wait(0.4); local _h = lp.Character and lp.Character:FindFirstChild("Head"); local _g = _h and _h:FindFirstChild("DsTag"); local _n = _g and _g:FindFirstChild("N"); say("Tag: " .. (TAG.text ~= "" and TAG.text or lp.DisplayName) .. " | lido: [" .. t .. "] | letreiro: [" .. (_n and _n.Text or "?") .. "]")
 	end, true)
 	roleLbl = mk("TextLabel", {
 		Text = "Cargo: " .. TAG.role .. " (definido pelo Dono)", Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1,
@@ -5289,7 +5289,7 @@ local function buildBrookhaven(pages, say)
 		local r = findRE(NAME_REMOTES)
 		if not r then say("Remote do nome não encontrado (o jogo pode ter mudado)."); return end
 		local ok = pcall(function() r:FireServer("RolePlayName", nameBox.Text) end)
-		say(ok and "Nome aplicado." or "Falhou ao aplicar o nome.")
+		say((ok and "Nome aplicado" or "Falhou ao aplicar o nome") .. " | lido: [" .. nameBox.Text .. "] " .. #nameBox.Text .. " letras")
 	end, true)
 	local bioBox = inputRow("Bio")
 	rowBtn(page, "Aplicar bio", function()
