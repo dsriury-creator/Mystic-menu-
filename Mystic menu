@@ -126,13 +126,19 @@ local function http(method, path, body)
 	if not req then lastErr = "executor sem request()"; DSLOG.err("http", lastErr); return nil end
 	local tok = AUTH.token()
 	if not tok then lastErr = "sem login: " .. tostring(AUTH.err or "?"); return nil end
-	local ok, res = pcall(req, {
-		Url = DB .. path .. "?auth=" .. tok, Method = method,
-		Headers = { ["Content-Type"] = "application/json" },
-		Body = body and HttpService:JSONEncode(body) or nil,
-	})
+	local ok, res
+	for attempt = 1, 3 do -- falha de rede/DNS passageira (ex.: "HttpError: DnsResolve"): tenta de novo antes de desistir
+		ok, res = pcall(req, {
+			Url = DB .. path .. "?auth=" .. tok, Method = method,
+			Headers = { ["Content-Type"] = "application/json" },
+			Body = body and HttpService:JSONEncode(body) or nil,
+		})
+		if ok or attempt == 3 or not tostring(res):find("HttpError") then break end
+		task.wait(1)
+	end
 	if not ok then
 		lastErr = scrub(res):sub(1, 60)
+		if tostring(res):find("DnsResolve") then lastErr = "sem DNS: o aparelho não achou o Firebase (troque Wi-Fi/dados ou o DNS)" end
 		DSLOG.err("http", method .. " " .. path .. " falhou: " .. scrub(res):sub(1, 120))
 		return nil
 	end
