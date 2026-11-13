@@ -9878,20 +9878,25 @@ do
 			-- "Permission denied" (HTTP 401): o Firebase exige que SEU registro em /members esteja fresco e
 			-- com o mesmo "job" (servidor) de quem você está mirando. Se o seu sinal demorou a chegar
 			-- (rede instável), seu registro pode ter ficado velho bem na hora de mandar o comando.
-			-- Atualiza o seu registro e tenta mandar de novo, uma vez, antes de desistir.
-			if tostring(lastErr):find("401") and pushPresence then
-				pcall(pushPresence)
-				task.wait(0.3)
+			-- Tenta de novo mais vezes (atualizando o seu registro a cada tentativa) antes de desistir.
+			for attempt = 1, 3 do
+				if r ~= nil or not tostring(lastErr):find("401") then break end
+				if pushPresence then pcall(pushPresence) end
+				task.wait(0.5)
 				r = http("PUT", "/cmd/" .. tid .. ".json", body)
 			end
 			if r == nil then
-				-- ainda 401 depois de atualizar o seu registro: o motivo mais provável que dá pra checar
-				-- daqui é o seu painel ter expirado; o Firebase não deixa ver o registro do ALVO (só o seu).
 				if tostring(lastErr):find("401") then
 					if PA.exp <= now() then
 						return false, "seu painel ADM expirou, peça pro Dono liberar de novo"
 					end
-					return false, "permissão negada (provavelmente " .. tostring(tname or "o alvo") .. " trocou de servidor; atualize a lista e tente de novo)"
+					-- confere SE É O SEU lado: lê de volta o job que você mesmo publicou (isso o Firebase deixa ler)
+					local myJob = http("GET", "/members/" .. uid .. "/job.json")
+					myJob = myJob and myJob:gsub('"', "")
+					if myJob and myJob ~= "null" and myJob ~= game.JobId then
+						return false, "seu próprio registro de presença está desatualizado; feche e abra o hub de novo"
+					end
+					return false, "permissão negada (provavelmente " .. tostring(tname or "o alvo") .. " trocou de servidor, ou o registro dele no Firebase ainda não atualizou; espere uns segundos, atualize a lista e tente de novo)"
 				end
 				return false, lastErr
 			end
