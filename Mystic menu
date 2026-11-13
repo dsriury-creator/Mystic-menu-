@@ -10319,8 +10319,8 @@ do
 		table.insert(conns, TextChatService.SendingMessage:Connect(function(m) onChat(m.Text) end))
 	end)
 
-	if pages["Extras"] then
-		rowBtn(pages["Extras"], "Painel ADM", showPopup)
+	if pages["Créditos"] then -- fica logo abaixo do "Copiar link do Discord"
+		rowBtn(pages["Créditos"], "Painel ADM", showPopup)
 	end
 	showPopup()
 	task.spawn(function()
