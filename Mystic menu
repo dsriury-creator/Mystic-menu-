@@ -8427,11 +8427,12 @@ local function buildAvatar(page, say)
 		target = it.value
 		ddA.setText("Jogador: " .. it.name)
 	end)
-	local summary = note("Nenhum avatar lido ainda.", 34)
-	rowBtn(page, "Ler avatar do jogador", function()
-		if not target or not target.Parent then say("Escolha um jogador primeiro."); return end
+	local summary = note("Escolha o jogador e toque em Copiar avatar pra mim.", 34)
+	-- (o botão "Ler avatar" saiu: o Copiar avatar já lê o jogador escolhido na hora)
+	local function readTarget()
+		if not target or not target.Parent then say("Escolha um jogador primeiro."); return false end
 		local list, err, ex = readAvatar(target)
-		if not list then logLine("FALHOU ao ler " .. target.Name .. ": " .. tostring(err)); say("Falhou: " .. tostring(err)); return end
+		if not list then logLine("FALHOU ao ler " .. target.Name .. ": " .. tostring(err)); say("Falhou: " .. tostring(err)); return false end
 		items = list
 		local counts, order = {}, {}
 		for _, it in ipairs(items) do
@@ -8445,8 +8446,8 @@ local function buildAvatar(page, say)
 		for _, it in ipairs(items) do logLine("   " .. it.kind .. ": " .. it.id) end
 		targetEx = ex
 		logExtra("   ", ex)
-		say(#items .. " itens lidos.")
-	end)
+		return true
+	end
 
 	-- itens que você está vestindo agora: set[id] = item, e a lista
 	local function wornSet()
@@ -8753,8 +8754,8 @@ local function buildAvatar(page, say)
 	local defaultBody = true
 	toggleRow(page, "Igualar partes do corpo padrão", "Se o alvo usa perna/braço padrão, tira o seu personalizado", function(v) defaultBody = v end, true)
 	rowBtn(page, "Copiar avatar pra mim", function()
-		if #items == 0 then say("Leia o avatar de um jogador primeiro."); return end
 		run(function()
+			if not readTarget() then return end
 			logLine("=== COPIAR avatar de " .. (target and target.DisplayName or "?") .. " (" .. #items .. " itens) ===")
 			local wornBefore, before = wornSet()
 			logLine("Meu avatar antes: " .. #before .. " itens")
@@ -8904,7 +8905,7 @@ local function buildAvatar(page, say)
 		end)
 	end, true)
 	rowBtn(page, "Tirar só os itens copiados", function()
-		if #items == 0 then say("Leia o avatar de um jogador primeiro."); return end
+		if #items == 0 then say("Copie o avatar de alguém primeiro."); return end
 		run(function()
 			logLine("=== TIRAR SÓ OS COPIADOS ===")
 			local worn = wornSet()
@@ -8920,7 +8921,7 @@ local function buildAvatar(page, say)
 		end)
 	end, true)
 	rowBtn(page, "Copiar lista de itens (texto)", function()
-		if #items == 0 then say("Leia o avatar de um jogador primeiro."); return end
+		if #items == 0 and not readTarget() then return end
 		local lines = {}
 		for _, it in ipairs(items) do lines[#lines + 1] = it.kind .. ": " .. it.id end
 		local f = setclipboard or toclipboard
@@ -9558,7 +9559,7 @@ local stopWings = pages["Blocos"] and buildWings(pages["Blocos"], say)
 buildCredits(pages["Créditos"])
 if pages["ID"] then buildId(pages["ID"], say) end
 local stopMods = buildMods(pages["Mod"], say)
-if pages["Nome"] then buildAvatarCopy(pages["Mod"], say) end
+-- (a cópia de avatar do Brookhaven saiu do Mod: já existe na aba Avatar)
 local stopFx = buildEffects(pages["Efeitos"], say)
 local stopExtras = buildExtras(pages["Extras"], say)
 do
@@ -9725,7 +9726,7 @@ task.spawn(function()
 		else
 			info.Text = "✖ Sem conexão: " .. lastErr
 		end
-		http("PUT", "/online/" .. uid .. ".json", { o = AUTH.id(), name = lp.Name, disp = lp.DisplayName, job = game.JobId, t = os.time(), ts = { [".sv"] = "timestamp" } })
+		http("PUT", "/online/" .. uid .. ".json", { o = AUTH.id(), name = lp.Name, disp = lp.DisplayName, job = game.JobId, place = game.PlaceId, t = os.time(), ts = { [".sv"] = "timestamp" } })
 		task.wait(5)
 	end
 end)
@@ -9847,7 +9848,7 @@ do
 	end
 
 	-- membros do hub que estão NESTE servidor (menos você)
-	local function fetchMembers()
+	local function fetchMembers(all) -- all=true: também lista quem está em outro servidor
 		-- jogadores deste servidor (não precisa ler /members.json, que só o admin pode ler nas regras)
 		local out = {}
 		local body = http("GET", "/online.json")
@@ -9855,7 +9856,7 @@ do
 			-- regras antigas (sem o nó /online): lista todo mundo do servidor, como antes
 			for _, pl in ipairs(Players:GetPlayers()) do
 				if tostring(pl.UserId) ~= uid then
-					out[#out + 1] = { id = tostring(pl.UserId), name = pl.Name, disp = pl.DisplayName }
+					out[#out + 1] = { id = tostring(pl.UserId), name = pl.Name, disp = pl.DisplayName, here = true }
 				end
 			end
 		else
@@ -9869,14 +9870,19 @@ do
 				if type(m) == "table" then ref = math.max(ref, tonumber(m.ts) or 0) end
 			end
 			for id, m in pairs(data or {}) do
-				if type(m) == "table" and id ~= uid and m.job == game.JobId and ref - (tonumber(m.ts) or 0) < 30000
-					and Players:GetPlayerByUserId(tonumber(id) or 0) then
+				local here = type(m) == "table" and m.job == game.JobId
+				if type(m) == "table" and id ~= uid and ref - (tonumber(m.ts) or 0) < 30000
+					and ((here and Players:GetPlayerByUserId(tonumber(id) or 0)) or (all and not here and type(m.job) == "string" and m.job ~= "")) then
 					local nm = tostring(m.name or id)
-					out[#out + 1] = { id = id, name = nm, disp = tostring(m.disp or nm), imune = (m.imune == true) or nil }
+					out[#out + 1] = { id = id, name = nm, disp = tostring(m.disp or nm), imune = (m.imune == true) or nil,
+						here = here, job = m.job, place = tonumber(m.place) }
 				end
 			end
 		end
-		table.sort(out, function(a, b) return a.name:lower() < b.name:lower() end)
+		table.sort(out, function(a, b)
+			if (a.here == true) ~= (b.here == true) then return a.here == true end -- quem está no seu servidor vem primeiro
+			return a.name:lower() < b.name:lower()
+		end)
 		return out
 	end
 	local function findTarget(q)
@@ -10064,14 +10070,15 @@ do
 			if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end
 		end
 		if #items == 0 then
-			mk("TextLabel", { Text = "Nenhum membro do hub neste servidor", Size = UDim2.new(1, -6, 0, 26), BackgroundTransparency = 1,
+			mk("TextLabel", { Text = "Ninguém com o hub ativo agora", Size = UDim2.new(1, -6, 0, 26), BackgroundTransparency = 1,
 				TextColor3 = Color3.fromRGB(180, 184, 196), Font = Enum.Font.Gotham, TextSize = 11 }, listBox)
 			return
 		end
 		for _, m in ipairs(items) do
-			local label = m.name .. ((m.disp ~= m.name) and ("  (" .. m.disp .. ")") or "") .. (m.imune and "  [imune]" or "")
+			local label = m.name .. ((m.disp ~= m.name) and ("  (" .. m.disp .. ")") or "") .. (m.here and "  (aqui)" or "  (outro servidor)") .. (m.imune and "  [imune]" or "")
 			local b = chip(listBox, label, function()
 				PA.sel, PA.selName = m.id, m.name
+				PA.selHere, PA.selJob, PA.selPlace = m.here, m.job, m.place
 				if selLbl then selLbl.Text = "Alvo: " .. m.name end
 			end)
 			b.Size = UDim2.new(1, -6, 0, 26)
@@ -10079,7 +10086,7 @@ do
 		end
 	end
 	local function refreshList()
-		task.spawn(function() renderList(fetchMembers()) end)
+		task.spawn(function() renderList(fetchMembers(true)) end)
 	end
 
 	local function buildPanel()
@@ -10124,6 +10131,7 @@ do
 			chip(grid, c[2], function()
 				if not PA.on then return end
 				if not PA.sel then toast("Escolha um alvo na lista."); return end
+				if PA.selHere == false then toast(tostring(PA.selName) .. " está em outro servidor: toque em Teleportar primeiro."); return end
 				local tid, tn = PA.sel, PA.selName
 				task.spawn(runCmd, c[1], tid, tn)
 			end)
@@ -10140,6 +10148,7 @@ do
 		local send = chip(pf, "Enviar", function()
 			if not PA.on then return end
 			if not PA.sel then toast("Escolha um alvo na lista."); return end
+			if PA.selHere == false then toast(tostring(PA.selName) .. " está em outro servidor: toque em Teleportar primeiro."); return end
 			local tid, tn, tx = PA.sel, PA.selName, msgBox.Text
 			task.spawn(runCmd, "message", tid, tn, tx)
 		end)
@@ -10147,7 +10156,7 @@ do
 		-- ===== Teleporte pro servidor: cola o JobId (ou o código de TP inteiro que veio no Discord) e toca em Teleportar =====
 		local tpBox = mk("TextBox", {
 			Size = UDim2.fromOffset(250, 32), Position = UDim2.fromOffset(12, 336), BackgroundColor3 = PANEL, BackgroundTransparency = 0.15,
-			Text = "", PlaceholderText = "Cole o JobId do servidor", PlaceholderColor3 = Color3.fromRGB(125, 130, 142),
+			Text = "", PlaceholderText = "Toque num nome da lista e em Teleportar", PlaceholderColor3 = Color3.fromRGB(125, 130, 142),
 			TextColor3 = WHITE, Font = Enum.Font.Code, TextSize = 11, ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Left,
 			ClipsDescendants = true,
 		}, pf)
@@ -10156,6 +10165,14 @@ do
 		local tpBtn = chip(pf, "Teleportar", function()
 			if not PA.on then return end
 			local txt = tpBox.Text or ""
+			if txt:gsub("%s", "") == "" and PA.sel then -- sem JobId colado: vai pro servidor de quem você escolheu na lista
+				if PA.selHere then toast(tostring(PA.selName) .. " já está no seu servidor."); return end
+				if not PA.selJob then toast("Não achei o servidor dele. Toque em Atualizar."); return end
+				toast("Teleportando para o servidor de " .. tostring(PA.selName) .. "...")
+				local okT, errT = pcall(function() game:GetService("TeleportService"):TeleportToPlaceInstance(PA.selPlace or game.PlaceId, PA.selJob, lp) end)
+				if not okT then toast("Falhou: " .. tostring(errT):sub(1, 40)) end
+				return
+			end
 			-- JobId é um GUID (8-4-4-4-12). Aceita só o JobId ou o código completo (TeleportToPlaceInstance(place, "job", ...))
 			local job = txt:match("%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x")
 			if not job then toast("Cole um JobId válido (o código do Discord)."); return end
