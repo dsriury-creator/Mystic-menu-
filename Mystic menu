@@ -9883,7 +9883,72 @@ do
 		if not exp then return "o seu painel ADM não está liberado pra este ID. Peça pro Dono liberar." end
 		local serverNow = d and tonumber(d.ts)
 		if serverNow and exp * 1000 <= serverNow then return "o seu painel ADM expirou. Peça pro Dono liberar de novo." end
-		return tname .. " não está registrado neste servidor: o hub dele (membro ou ADM, sem Anti-Painel) precisa estar aberto agora aqui. Peça pra reabrir."
+		return tname .. " não está registrado neste servidor: o hub dele (membro ou ADM de teste, com o Anti-Painel desligado) precisa estar aberto agora neste servidor, e na versão nova. Peça pra reabrir."
+	end
+
+	-- ADM com Anti-Painel ligado publica /cmd/immune_<id>; assim dá pra avisar "está imune" em vez de um erro genérico
+	local function isImmune(tid)
+		local b = http("GET", "/cmd/immune_" .. tid .. ".json")
+		if not b or b == "null" or b == "" then return false end
+		local ok, d = pcall(HttpService.JSONDecode, HttpService, b)
+		return ok and type(d) == "table" and d.job == game.JobId and math.abs(os.time() - (tonumber(d.t) or 0)) < 120
+	end
+
+	-- ===== efeitos vistos por VOCÊ (quem mandou): a caixa/fogo do alvo é criada no aparelho DELE, então aqui desenha igual =====
+	local CFX = {} -- tid -> { jail = {parts}, fire = Fire }
+	local function cfxRec(tid) CFX[tid] = CFX[tid] or { jail = {} }; return CFX[tid] end
+	local function cfxClearJail(tid)
+		local rec = CFX[tid]; if not rec then return end
+		for _, p in ipairs(rec.jail) do pcall(function() p:Destroy() end) end
+		rec.jail = {}; rec.token = nil
+	end
+	local function cfxBox(tid, center, size, color)
+		cfxClearJail(tid)
+		local rec = cfxRec(tid)
+		local token = {}; rec.token = token
+		local half = size / 2
+		local function wall(off, sz)
+			-- sem colisão: só pra você VER (não prende o seu personagem)
+			table.insert(rec.jail, mk("Part", { Anchored = true, CanCollide = false, CanQuery = false, Size = sz, Position = center + off,
+				Material = Enum.Material.Metal, Color = color, Transparency = 0.35 }, workspace))
+		end
+		wall(Vector3.new(0, -half, 0), Vector3.new(size, 1, size)); wall(Vector3.new(0, half, 0), Vector3.new(size, 1, size))
+		wall(Vector3.new(half, 0, 0), Vector3.new(1, size, size)); wall(Vector3.new(-half, 0, 0), Vector3.new(1, size, size))
+		wall(Vector3.new(0, 0, half), Vector3.new(size, size, 1)); wall(Vector3.new(0, 0, -half), Vector3.new(size, size, 1))
+		-- some se o alvo sair do servidor ou depois de 10 min (o alvo também solta sozinho se o hub dele fechar)
+		task.spawn(function()
+			local t0 = os.clock()
+			while rec.token == token and os.clock() - t0 < 600 do
+				if not Players:GetPlayerByUserId(tonumber(tid) or 0) then break end
+				task.wait(1)
+			end
+			if rec.token == token then cfxClearJail(tid) end
+		end)
+	end
+	local function cfxApply(action, tid)
+		if action == "jail" then
+			task.spawn(function()
+				task.wait(2.6) -- o alvo recebe o comando a cada 2s; espera ele montar a caixa
+				local pl = Players:GetPlayerByUserId(tonumber(tid) or 0)
+				local r = pl and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+				if r then cfxBox(tid, r.Position + Vector3.new(0, 2, 0), 10, Color3.fromRGB(60, 60, 60)) end
+			end)
+		elseif action == "backrooms" then
+			cfxBox(tid, Vector3.new(0, 4000, 0), 28, Color3.fromRGB(200, 180, 90))
+		elseif action == "unjail" then
+			cfxClearJail(tid)
+		elseif action == "fire" then
+			task.spawn(function()
+				task.wait(2.6)
+				local pl = Players:GetPlayerByUserId(tonumber(tid) or 0)
+				local r = pl and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+				if r and not r:FindFirstChild("CmdFxFire") then mk("Fire", { Name = "CmdFxFire", Size = 8, Heat = 10 }, r) end
+			end)
+		elseif action == "unfire" then
+			local pl = Players:GetPlayerByUserId(tonumber(tid) or 0)
+			local r = pl and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+			local f = r and r:FindFirstChild("CmdFxFire"); if f then f:Destroy() end
+		end
 	end
 
 	-- manda o comando pelo mesmo caminho do ADM (/cmd/<id>); o alvo executa a mesma lista fixa de ações
@@ -9892,6 +9957,7 @@ do
 		if not (ALLOWED[action] or action == "message") then return false, "comando inválido" end
 		if os.clock() - PA.last < 0.8 then return false, "calma, um de cada vez" end
 		PA.last = os.clock()
+		if isImmune(tid) then return false, tostring(tname or "esse ADM") .. " está imune (Anti-Painel ligado)" end
 		local body = { id = HttpService:GenerateGUID(false), action = action, job = game.JobId, by = lp.Name, rid = uid }
 		if extra then for k, v in pairs(extra) do body[k] = v end end
 		local r = http("PUT", "/cmd/" .. tid .. ".json", body)
@@ -9936,7 +10002,7 @@ do
 			extra = { text = text:sub(1, 80) }
 		end
 		local ok, why = sendTo(tid, action, extra, tname)
-		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 200)) end
+		if ok then pcall(cfxApply, action, tid); toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 200)) end
 	end
 
 	-- ===== popup (dentro do painel verdadeiro, fixo) =====
