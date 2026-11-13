@@ -9039,7 +9039,7 @@ local function buildProtExtra(page, say)
 		say(v and "Anti-grudar ligado." or "Anti-grudar desligado.")
 	end)
 
-	local function mine(name) return name:sub(1, 4) == "Shin" or name:sub(1, 2) == "Ds" end
+	local function mine(d) return d.Name:sub(1, 4) == "Shin" or d.Name:sub(1, 2) == "Ds" or d:GetAttribute("DsFx") end
 	local function ownedByOther(part)
 		if not part then return false end
 		for _, pl in ipairs(Players:GetPlayers()) do
@@ -9062,7 +9062,7 @@ local function buildProtExtra(page, say)
 		acc = 0
 		if P.antifire or P.antiattach then
 			for _, d in ipairs(c:GetDescendants()) do
-				if not mine(d.Name) and not d:GetAttribute("DsMod") then
+				if not mine(d) and not d:GetAttribute("DsMod") then
 					if P.antifire and (d:IsA("Fire") or d:IsA("Smoke")) then
 						d:Destroy()
 					elseif P.antiattach then
@@ -9863,7 +9863,7 @@ do
 	end
 
 	-- manda o comando pelo mesmo caminho do ADM (/cmd/<id>); o alvo executa a mesma lista fixa de ações
-	local function sendTo(tid, action, extra)
+	local function sendTo(tid, action, extra, tname)
 		if not PA.on then return false, "sem painel" end
 		if not (ALLOWED[action] or action == "message") then return false, "comando inválido" end
 		if os.clock() - PA.last < 0.8 then return false, "calma, um de cada vez" end
@@ -9881,7 +9881,17 @@ do
 				task.wait(0.3)
 				r = http("PUT", "/cmd/" .. tid .. ".json", body)
 			end
-			if r == nil then return false, lastErr end
+			if r == nil then
+				-- ainda 401 depois de atualizar o seu registro: o motivo mais provável que dá pra checar
+				-- daqui é o seu painel ter expirado; o Firebase não deixa ver o registro do ALVO (só o seu).
+				if tostring(lastErr):find("401") then
+					if PA.exp <= now() then
+						return false, "seu painel ADM expirou, peça pro Dono liberar de novo"
+					end
+					return false, "permissão negada (provavelmente " .. tostring(tname or "o alvo") .. " trocou de servidor; atualize a lista e tente de novo)"
+				end
+				return false, lastErr
+			end
 		end
 		return true
 	end
@@ -9896,7 +9906,7 @@ do
 			if not text or text == "" then toast("Digite a mensagem."); return end
 			extra = { text = text:sub(1, 80) }
 		end
-		local ok, why = sendTo(tid, action, extra)
+		local ok, why = sendTo(tid, action, extra, tname)
 		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 90)) end
 	end
 
