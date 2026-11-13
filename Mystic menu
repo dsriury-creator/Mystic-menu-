@@ -8,7 +8,7 @@ local ICON_URL = "https://i.postimg.cc/N0KCv0Lw/mago-transparente.png" -- mago: 
 local FOLDER = "SHIN HUB"
 -- Webhook do Discord: quando alguém executa o hub, cai uma mensagem (nick, foto, hora e código de TP) no canal do webhook.
 -- Cole o link entre as aspas. Vazio = não envia nada. Use um canal SÓ SEU (quem abrir o script consegue ver este link).
-local DISCORD_WEBHOOK = ""
+local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1570586784692174879/X3_gNcoTGAnLBtZRND-70EGnA39Q9mNcxku1Jt4fffzMGER7cUTyNlh5bgZKD6xHYfTc"
 
 -- Scripts que aparecem no menu: { "Nome", "link do script", "Grupo (opcional)" }
 local SCRIPTS = {
