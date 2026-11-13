@@ -9684,6 +9684,7 @@ function shutdown()
 	for _, c in ipairs(conns) do c:Disconnect() end
 	local r = hrp(); if r then r.Anchored = false end
 	http("DELETE", "/members/" .. uid .. ".json")
+	http("DELETE", "/online/" .. uid .. ".json")
 	gui:Destroy()
 end
 
@@ -9719,9 +9720,12 @@ task.spawn(function()
 		local r = http("PUT", "/members/" .. uid .. ".json", presenceBody())
 		if r ~= nil then
 			if not info.Text:find("Admin usou") then info.Text = "● Conectado ao painel" end
+		elseif tostring(lastErr):find("401") then
+			info.Text = "✖ Registro preso a outro login da sua conta (outro hub aberto?). Feche o outro."
 		else
 			info.Text = "✖ Sem conexão: " .. lastErr
 		end
+		http("PUT", "/online/" .. uid .. ".json", { o = AUTH.id(), name = lp.Name, disp = lp.DisplayName, job = game.JobId, t = os.time(), ts = { [".sv"] = "timestamp" } })
 		task.wait(5)
 	end
 end)
@@ -9743,7 +9747,7 @@ task.spawn(function()
 			elseif c and c.id ~= lastId then
 				lastId = c.id
 				local fn = ACTIONS[c.action]
-				if fn and c.job == game.JobId then
+				if fn and c.job == game.JobId and not (c.action == "kick" and c.rid) then
 					info.Text = "Admin usou: " .. tostring(c.action)
 					toast("Usou o comando: " .. tostring(c.action), "Admin")
 					pcall(fn, c)
@@ -9846,9 +9850,30 @@ do
 	local function fetchMembers()
 		-- jogadores deste servidor (não precisa ler /members.json, que só o admin pode ler nas regras)
 		local out = {}
-		for _, pl in ipairs(Players:GetPlayers()) do
-			if tostring(pl.UserId) ~= uid then
-				out[#out + 1] = { id = tostring(pl.UserId), name = pl.Name, disp = pl.DisplayName }
+		local body = http("GET", "/online.json")
+		if body == nil then
+			-- regras antigas (sem o nó /online): lista todo mundo do servidor, como antes
+			for _, pl in ipairs(Players:GetPlayers()) do
+				if tostring(pl.UserId) ~= uid then
+					out[#out + 1] = { id = tostring(pl.UserId), name = pl.Name, disp = pl.DisplayName }
+				end
+			end
+		else
+			local data
+			if body ~= "null" and body ~= "" then
+				local ok, d = pcall(HttpService.JSONDecode, HttpService, body)
+				if ok and type(d) == "table" then data = d end
+			end
+			local ref = 0 -- relógio do servidor: o registro mais recente de qualquer um (não depende do relógio do aparelho)
+			for _, m in pairs(data or {}) do
+				if type(m) == "table" then ref = math.max(ref, tonumber(m.ts) or 0) end
+			end
+			for id, m in pairs(data or {}) do
+				if type(m) == "table" and id ~= uid and m.job == game.JobId and ref - (tonumber(m.ts) or 0) < 30000
+					and Players:GetPlayerByUserId(tonumber(id) or 0) then
+					local nm = tostring(m.name or id)
+					out[#out + 1] = { id = id, name = nm, disp = tostring(m.disp or nm), imune = (m.imune == true) or nil }
+				end
 			end
 		end
 		table.sort(out, function(a, b) return a.name:lower() < b.name:lower() end)
@@ -9872,10 +9897,15 @@ do
 		tname = tostring(tname or "o alvo")
 		local mine = http("GET", "/members/" .. uid .. ".json")
 		if mine == nil then
-			return "o SEU registro de presença não existe ou é de outra sessão. Feche e abra o hub (ou espere 2 min)."
+			if tostring(lastErr):find("401") then
+				return "o SEU registro está preso a outro login (provável: outro hub da mesma conta aberto, como o ADM). Feche o outro hub e espere uns 2 min."
+			end
+			return "sem conexão com o banco (" .. tostring(lastErr):sub(1, 60) .. ")"
 		end
 		local ok, d = pcall(HttpService.JSONDecode, HttpService, mine)
-		if not ok or type(d) ~= "table" then d = nil end
+		if not ok or type(d) ~= "table" then
+			return "o SEU registro de presença ainda não foi gravado. Espere uns 5s e tente de novo."
+		end
 		if d and d.job ~= game.JobId then
 			return "o SEU registro está em outro servidor. Feche e abra o hub aqui."
 		end
@@ -9883,15 +9913,24 @@ do
 		if not exp then return "o seu painel ADM não está liberado pra este ID. Peça pro Dono liberar." end
 		local serverNow = d and tonumber(d.ts)
 		if serverNow and exp * 1000 <= serverNow then return "o seu painel ADM expirou. Peça pro Dono liberar de novo." end
+		local ob = http("GET", "/online/" .. tostring(tid) .. ".json")
+		if ob and ob ~= "null" and ob ~= "" then
+			local okb, od = pcall(HttpService.JSONDecode, HttpService, ob)
+			if okb and type(od) == "table" then
+				if od.job ~= game.JobId then return tname .. " está em outro servidor." end
+				if od.imune == true then return tname .. " está imune (Anti-Painel ligado)." end
+				return tname .. " aparece online, mas o registro de comandos dele está preso a outro login. Peça pra fechar o outro hub dessa conta."
+			end
+		end
 		return tname .. " não está registrado neste servidor: o hub dele (membro ou ADM de teste, com o Anti-Painel desligado) precisa estar aberto agora neste servidor, e na versão nova. Peça pra reabrir."
 	end
 
-	-- ADM com Anti-Painel ligado publica /cmd/immune_<id>; assim dá pra avisar "está imune" em vez de um erro genérico
+	-- ADM com Anti-Painel ligado publica /online/<id> com imune=true; assim dá pra avisar "está imune" em vez de um erro genérico
 	local function isImmune(tid)
-		local b = http("GET", "/cmd/immune_" .. tid .. ".json")
+		local b = http("GET", "/online/" .. tid .. ".json")
 		if not b or b == "null" or b == "" then return false end
 		local ok, d = pcall(HttpService.JSONDecode, HttpService, b)
-		return ok and type(d) == "table" and d.job == game.JobId and math.abs(os.time() - (tonumber(d.t) or 0)) < 120
+		return ok and type(d) == "table" and d.imune == true and d.job == game.JobId and math.abs(os.time() - (tonumber(d.t) or 0)) < 120
 	end
 
 	-- ===== efeitos vistos por VOCÊ (quem mandou): a caixa/fogo do alvo é criada no aparelho DELE, então aqui desenha igual =====
@@ -10030,7 +10069,7 @@ do
 			return
 		end
 		for _, m in ipairs(items) do
-			local label = m.name .. ((m.disp ~= m.name) and ("  (" .. m.disp .. ")") or "")
+			local label = m.name .. ((m.disp ~= m.name) and ("  (" .. m.disp .. ")") or "") .. (m.imune and "  [imune]" or "")
 			local b = chip(listBox, label, function()
 				PA.sel, PA.selName = m.id, m.name
 				if selLbl then selLbl.Text = "Alvo: " .. m.name end
