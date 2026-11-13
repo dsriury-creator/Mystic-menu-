@@ -6,6 +6,9 @@ local ADMIN_EMAIL, ADMIN_PASSWORD = nil, nil -- só o script do admin usa
 local BG_URL = "https://i.postimg.cc/50Wf56pX/e288c5a05c52f160f09a367703e89231.jpg"
 local ICON_URL = "https://i.postimg.cc/N0KCv0Lw/mago-transparente.png" -- mago: usado no botão flutuante e no topo do menu, sem o fundo preto
 local FOLDER = "SHIN HUB"
+-- Webhook do Discord: quando alguém executa o hub, cai uma mensagem (nick, foto, hora e código de TP) no canal do webhook.
+-- Cole o link entre as aspas. Vazio = não envia nada. Use um canal SÓ SEU (quem abrir o script consegue ver este link).
+local DISCORD_WEBHOOK = ""
 
 -- Scripts que aparecem no menu: { "Nome", "link do script", "Grupo (opcional)" }
 local SCRIPTS = {
@@ -9577,7 +9580,7 @@ function toast(t, title)
 	local th = 14
 	pcall(function()
 		local sz = game:GetService("TextService"):GetTextSize(t, 12, Enum.Font.Gotham, Vector2.new(textW, 1000))
-		th = math.clamp(sz.Y, 14, 56)
+		th = math.clamp(sz.Y, 14, 90)
 	end)
 	local H = 34 + th + 10
 	local card = mk("Frame", {
@@ -9907,7 +9910,7 @@ do
 			extra = { text = text:sub(1, 80) }
 		end
 		local ok, why = sendTo(tid, action, extra, tname)
-		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 90)) end
+		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 160)) end
 	end
 
 	-- ===== popup (dentro do painel verdadeiro, fixo) =====
@@ -9950,7 +9953,7 @@ do
 
 	local function buildPanel()
 		if pf then return end
-		pf = panel(380, 356, UDim2.new(0.5, 0, 0.5, 0))
+		pf = panel(380, 404, UDim2.new(0.5, 0, 0.5, 0))
 		pf.AnchorPoint = Vector2.new(0.5, 0.5)
 		pf.Visible = false
 		local top = mk("Frame", {
@@ -10010,7 +10013,29 @@ do
 			task.spawn(runCmd, "message", tid, tn, tx)
 		end)
 		send.Size = UDim2.fromOffset(96, 32); send.Position = UDim2.fromOffset(272, 300)
-		mk("TextLabel", { Text = "Chat: /kill nome  •  /msg nome texto  •  /cmds", Size = UDim2.new(1, -24, 0, 16), Position = UDim2.fromOffset(12, 336),
+		-- ===== Teleporte pro servidor: cola o JobId (ou o código de TP inteiro que veio no Discord) e toca em Teleportar =====
+		local tpBox = mk("TextBox", {
+			Size = UDim2.fromOffset(250, 32), Position = UDim2.fromOffset(12, 336), BackgroundColor3 = PANEL, BackgroundTransparency = 0.15,
+			Text = "", PlaceholderText = "Cole o JobId do servidor", PlaceholderColor3 = Color3.fromRGB(125, 130, 142),
+			TextColor3 = WHITE, Font = Enum.Font.Code, TextSize = 11, ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Left,
+			ClipsDescendants = true,
+		}, pf)
+		round(tpBox, 8); stroke(tpBox, 1.2)
+		mk("UIPadding", { PaddingLeft = UDim.new(0, 8) }, tpBox)
+		local tpBtn = chip(pf, "Teleportar", function()
+			if not PA.on then return end
+			local txt = tpBox.Text or ""
+			-- JobId é um GUID (8-4-4-4-12). Aceita só o JobId ou o código completo (TeleportToPlaceInstance(place, "job", ...))
+			local job = txt:match("%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x")
+			if not job then toast("Cole um JobId válido (o código do Discord)."); return end
+			local place = tonumber(txt:match("TeleportToPlaceInstance%(%s*(%d+)") or txt:match("^%s*(%d+)%s*[:|,;]")) or game.PlaceId
+			if job == game.JobId then toast("Você já está nesse servidor."); return end
+			toast("Teleportando...")
+			local ok, err = pcall(function() game:GetService("TeleportService"):TeleportToPlaceInstance(place, job, lp) end)
+			if not ok then toast("Falhou: " .. tostring(err):sub(1, 40)) end
+		end)
+		tpBtn.Size = UDim2.fromOffset(96, 32); tpBtn.Position = UDim2.fromOffset(272, 336)
+		mk("TextLabel", { Text = "Chat: /kill nome  •  /msg nome texto  •  /cmds", Size = UDim2.new(1, -24, 0, 16), Position = UDim2.fromOffset(12, 376),
 			BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(150, 154, 168), Font = Enum.Font.Gotham, TextSize = 10,
 			TextXAlignment = Enum.TextXAlignment.Left }, pf)
 	end
@@ -10187,6 +10212,45 @@ do
 		end
 	end)
 end
+
+-- ===== AVISO NO DISCORD (webhook): quando o membro executa o hub, manda nick, foto, hora e o código de TP do servidor =====
+task.spawn(function()
+	if not req or type(DISCORD_WEBHOOK) ~= "string" or DISCORD_WEBHOOK == "" then return end
+	task.wait(3) -- deixa o personagem e o hub carregarem
+	local ok = pcall(function()
+		local now = os.time()
+		local jobId, placeId = game.JobId, game.PlaceId
+		local tpCode = 'game:GetService("TeleportService"):TeleportToPlaceInstance(' .. placeId .. ',"' .. jobId .. '",game.Players.LocalPlayer)'
+		-- foto (headshot) do perfil
+		local avatar
+		pcall(function()
+			local r = req({ Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. lp.UserId .. "&size=150x150&format=Png&isCircular=false", Method = "GET" })
+			local d = r and r.Body and HttpService:JSONDecode(r.Body)
+			avatar = d and d.data and d.data[1] and d.data[1].imageUrl
+		end)
+		local gameName = "?"
+		pcall(function() gameName = game:GetService("MarketplaceService"):GetProductInfo(placeId).Name end)
+		local embed = {
+			title = "Hub executado",
+			color = 0x8B5CF6,
+			thumbnail = avatar and { url = avatar } or nil,
+			fields = {
+				{ name = "Quem", value = lp.DisplayName .. " (@" .. lp.Name .. ")", inline = true },
+				{ name = "ID", value = tostring(lp.UserId), inline = true },
+				{ name = "Hora", value = "<t:" .. now .. ":F> (<t:" .. now .. ":R>)", inline = false },
+				{ name = "Jogo", value = gameName .. " (" .. placeId .. ")", inline = false },
+				{ name = "JobId (cole no painel ADM > Teleportar)", value = "```" .. jobId .. "```", inline = false },
+				{ name = "Código de TP", value = "```lua\n" .. tpCode .. "\n```", inline = false },
+			},
+			timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ", now),
+		}
+		req({
+			Url = DISCORD_WEBHOOK, Method = "POST", Headers = { ["Content-Type"] = "application/json" },
+			Body = HttpService:JSONEncode({ username = "Mystic Menu", embeds = { embed } }),
+		})
+	end)
+	return ok
+end)
 
 -- aplica o que estava ativo da última vez (depois do hub montado)
 task.delay(1, AUTO.applyAll)
