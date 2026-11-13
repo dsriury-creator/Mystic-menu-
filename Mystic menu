@@ -9865,6 +9865,27 @@ do
 		return best
 	end
 
+	-- quando o Firebase recusa (401), descobre a causa. Pelas regras: o comando só passa se (1) o SEU registro em /members é seu,
+	-- (2) o seu painel está liberado (/cmd/panel_<seuId>/exp no futuro) e (3) o ALVO está registrado em /members com o MESMO job que o seu.
+	-- O Firebase só deixa você ler o SEU registro (não o dos outros), então (1) e (2) dá pra conferir aqui e (3) fica por eliminação.
+	local function whyDenied(tid, tname)
+		tname = tostring(tname or "o alvo")
+		local mine = http("GET", "/members/" .. uid .. ".json")
+		if mine == nil then
+			return "o SEU registro de presença não existe ou é de outra sessão. Feche e abra o hub (ou espere 2 min)."
+		end
+		local ok, d = pcall(HttpService.JSONDecode, HttpService, mine)
+		if not ok or type(d) ~= "table" then d = nil end
+		if d and d.job ~= game.JobId then
+			return "o SEU registro está em outro servidor. Feche e abra o hub aqui."
+		end
+		local exp = tonumber(http("GET", "/cmd/panel_" .. uid .. "/exp.json") or "")
+		if not exp then return "o seu painel ADM não está liberado pra este ID. Peça pro Dono liberar." end
+		local serverNow = d and tonumber(d.ts)
+		if serverNow and exp * 1000 <= serverNow then return "o seu painel ADM expirou. Peça pro Dono liberar de novo." end
+		return tname .. " não está registrado neste servidor: o hub dele (membro ou ADM, sem Anti-Painel) precisa estar aberto agora aqui. Peça pra reabrir."
+	end
+
 	-- manda o comando pelo mesmo caminho do ADM (/cmd/<id>); o alvo executa a mesma lista fixa de ações
 	local function sendTo(tid, action, extra, tname)
 		if not PA.on then return false, "sem painel" end
@@ -9896,7 +9917,7 @@ do
 					if myJob and myJob ~= "null" and myJob ~= game.JobId then
 						return false, "seu próprio registro de presença está desatualizado; feche e abra o hub de novo"
 					end
-					return false, "permissão negada (provavelmente " .. tostring(tname or "o alvo") .. " trocou de servidor, ou o registro dele no Firebase ainda não atualizou; espere uns segundos, atualize a lista e tente de novo)"
+					return false, whyDenied(tid, tname)
 				end
 				return false, lastErr
 			end
@@ -9915,7 +9936,7 @@ do
 			extra = { text = text:sub(1, 80) }
 		end
 		local ok, why = sendTo(tid, action, extra, tname)
-		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 160)) end
+		if ok then toast(action .. " → " .. tname) else toast("Falhou: " .. tostring(why):sub(1, 200)) end
 	end
 
 	-- ===== popup (dentro do painel verdadeiro, fixo) =====
