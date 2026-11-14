@@ -132,7 +132,7 @@ local function http(method, path, body)
 	local ok, res
 	for attempt = 1, 3 do -- falha de rede/DNS passageira (ex.: "HttpError: DnsResolve"): tenta de novo antes de desistir
 		ok, res = pcall(req, {
-			Url = DB .. path .. "?auth=" .. tok, Method = method,
+			Url = DB .. path .. (path:find("?", 1, true) and "&auth=" or "?auth=") .. tok, Method = method,
 			Headers = { ["Content-Type"] = "application/json" },
 			Body = body and HttpService:JSONEncode(body) or nil,
 		})
@@ -873,7 +873,7 @@ local ICONS = {
 	["Sintonia RP"] = "◎",
 	["Scripts"] = "◆", ["Evade"] = "♦", ["Brookhaven"] = "◇", ["Natural Disaster"] = "▲", ["Mod"] = "★", ["Efeitos"] = "●",
 	["Extras"] = "■", ["Conexão"] = "▼", ["Créditos"] = "☆", ["ID"] = "◉", ["Admin"] = "◀", ["Proteções"] = "◈", ["Movimento"] = "▶",
-	["Itens"] = "✚", ["Motos"] = "◆", ["Nome"] = "▣", ["Música"] = "♪", ["Tag"] = "✦",
+	["Itens"] = "✚", ["Motos"] = "◆", ["Nome"] = "▣", ["Música"] = "♪", ["Chat"] = "✉", ["Tag"] = "✦",
 }
 UI.gated, UI.open = {}, {} -- abas que só aparecem com liberação (nenhuma por enquanto)
 local function buildWindow(w, h, title, sub, tabNames, onClose)
@@ -5652,6 +5652,382 @@ local function buildBrookhaven(pages, say)
 	table.insert(conns, { Disconnect = function() alive = false end })
 end
 
+-- ===== Chat do hub: parece o chat do Roblox, mas só quem usa o script vê e manda mensagem =====
+-- Fica na aba Chat (toca na caixa, digita e envia) e também pode aparecer na tela, no canto.
+-- O chat é só do servidor atual: quem vê e manda mensagem é quem está no mesmo mapa e com o script ligado.
+-- Usa o Firebase em /chat/<canal>. As regras do banco precisam do bloco "chat" (regras novas).
+local function buildChat(page, say)
+	local CHAT_ROLE = nil
+	local jid = tostring(game.JobId)
+	if jid == "" then jid = "local" end
+	local ROOMS = { srv = "/chat/s_" .. jid:gsub("[^%w%-]", "_") }
+	local QUERY = ".json?orderBy=%22%24key%22&limitToLast=40"
+	local room, lastSig, msgs = "srv", nil, {}
+	local views = {} -- cada lista de mensagens na tela: { list = ScrollingFrame, compact = bool }
+	local statusLbl, overlayGui, overlayRoomBtn
+	local running, lastSend = true, 0
+	local roomBtns = {}
+	local setRoom, poll
+
+	local COLORS = { "#fd2943", "#01a2ff", "#02b857", "#a75eb8", "#f58225", "#f5cd30", "#e8bad6", "#d7c59a" }
+	local function esc(s)
+		s = tostring(s):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
+		return s
+	end
+	local function nameColor(n)
+		local h = 0
+		for i = 1, #n do h = (h * 31 + n:byte(i)) % 9973 end
+		return COLORS[h % #COLORS + 1]
+	end
+	local function lineText(m, compact)
+		local nm = tostring(m.name or "?")
+		local s = ""
+		if not compact then
+			local t = tonumber(m.t)
+			if t then s = '<font color="#8a8f9c">' .. os.date("%H:%M", math.floor(t / 1000)) .. "</font> " end
+		end
+		if type(m.r) == "string" and m.r ~= "" then
+			s = s .. '<font color="#ff4d5e"><b>[' .. esc(m.r) .. "]</b></font> "
+		end
+		return s .. '<font color="' .. nameColor(nm) .. '"><b>[' .. esc(nm) .. "]</b></font>: " .. esc(m.text)
+	end
+
+	local function draw(v)
+		local list = v.list
+		if not list or not list.Parent then return end
+		for _, c in ipairs(list:GetChildren()) do
+			if c:IsA("TextLabel") then c:Destroy() end
+		end
+		for i, m in ipairs(msgs) do
+			mk("TextLabel", {
+				Text = lineText(m, v.compact), RichText = true, Size = UDim2.new(1, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+				BackgroundTransparency = 1, TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = v.compact and 13 or 12,
+				TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = v.compact and 0.55 or 1,
+				LayoutOrder = i,
+			}, list)
+		end
+		task.defer(function()
+			task.wait()
+			pcall(function() list.CanvasPosition = Vector2.new(0, 1000000) end)
+		end)
+	end
+	local function redraw()
+		for _, v in ipairs(views) do draw(v) end
+	end
+	local function setStatus(t, bad)
+		if statusLbl then
+			statusLbl.Text = t
+			statusLbl.TextColor3 = bad and Color3.fromRGB(255, 120, 130) or UI.SOFT
+		end
+	end
+
+	-- busca as 40 últimas mensagens do canal (a chave do Firebase já vem em ordem de envio)
+	poll = function()
+		local r = room
+		local body = http("GET", ROOMS[r] .. QUERY)
+		if r ~= room then return end
+		if body == nil then
+			setStatus("Sem conexão com o chat: " .. tostring(lastErr), true)
+			return
+		end
+		setStatus("Só quem está neste servidor com o script vê estas mensagens", false)
+		if body == lastSig then return end
+		lastSig = body
+		local list = {}
+		if body ~= "null" and body ~= "" then
+			local ok, d = pcall(HttpService.JSONDecode, HttpService, body)
+			if ok and type(d) == "table" then
+				for k, m in pairs(d) do
+					if type(m) == "table" and type(m.text) == "string" then
+						m._k = tostring(k)
+						table.insert(list, m)
+					end
+				end
+			end
+		end
+		table.sort(list, function(a, b) return a._k < b._k end)
+		msgs = list
+		redraw()
+	end
+
+	local function paintRooms()
+		for k, b in pairs(roomBtns) do
+			b.BackgroundColor3 = (k == room) and RED or PANEL
+		end
+		if overlayRoomBtn then overlayRoomBtn.Text = (room == "srv") and "Servidor" or "Global" end
+	end
+	setRoom = function(r)
+		if r == room then return end
+		room, lastSig, msgs = r, nil, {}
+		paintRooms()
+		redraw()
+		task.spawn(poll)
+	end
+
+	local function sendMsg(text)
+		text = tostring(text or ""):gsub("^%s+", "")
+		text = text:gsub("%s+$", "")
+		if text == "" then return false end
+		if os.clock() - lastSend < 0.8 then
+			say("Calma, espere um pouquinho para mandar outra mensagem.")
+			return false
+		end
+		local n = utf8.len(text)
+		if n and n > 180 then text = text:sub(1, utf8.offset(text, 181) - 1) end
+		lastSend = os.clock()
+		local r = room
+		task.spawn(function()
+			local body = { name = lp.DisplayName, uid = tostring(lp.UserId), text = text, t = { [".sv"] = "timestamp" } }
+			if CHAT_ROLE then body.r = CHAT_ROLE end
+			local res = http("POST", ROOMS[r] .. ".json", body)
+			if res == nil then
+				say("Não consegui mandar: " .. tostring(lastErr))
+				return
+			end
+			poll()
+		end)
+		return true
+	end
+
+	-- só busca mensagens quando o chat está de fato visível (aba aberta ou janela na tela)
+	local function shown(o)
+		while o and o ~= gui do
+			if o:IsA("GuiObject") and not o.Visible then return false end
+			o = o.Parent
+		end
+		return o == gui
+	end
+
+	-- ===== dentro da aba Chat =====
+	section(page, "Chat do script")
+	mk("TextLabel", {
+		Text = "Funciona como o chat do Roblox, mas só quem está neste servidor com o script ligado vê e manda mensagem. Toque na caixa, digite e envie.",
+		Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, TextColor3 = UI.SOFT, Font = Enum.Font.Gotham,
+		TextSize = 11, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+	}, page)
+	local wrap = mk("Frame", { Size = UDim2.new(1, 0, 0, 282), BackgroundTransparency = 1 }, page)
+	local list = mk("ScrollingFrame", {
+		Size = UDim2.new(1, 0, 0, 214), Position = UDim2.fromOffset(0, 0), BackgroundColor3 = PANEL, BackgroundTransparency = 0.25,
+		BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = UI.EDGE, CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y,
+	}, wrap)
+	round(list, 8)
+	mk("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+	mk("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 6) }, list)
+	table.insert(views, { list = list, compact = false })
+
+	local box = mk("TextBox", {
+		Size = UDim2.new(1, -88, 0, 34), Position = UDim2.fromOffset(0, 222), BackgroundColor3 = PANEL, BackgroundTransparency = 0.15,
+		Text = "", PlaceholderText = "Toque aqui e digite sua mensagem...", PlaceholderColor3 = Color3.fromRGB(125, 130, 142),
+		TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 13, ClearTextOnFocus = false,
+		TextXAlignment = Enum.TextXAlignment.Left, ClipsDescendants = true,
+	}, wrap)
+	round(box, 8); stroke(box, 1.2)
+	mk("UIPadding", { PaddingLeft = UDim.new(0, 10) }, box)
+	local sendB = mk("TextButton", {
+		Text = "Enviar", AutoButtonColor = false, Size = UDim2.fromOffset(80, 34), Position = UDim2.new(1, -80, 0, 222),
+		BackgroundColor3 = RED, TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 12,
+	}, wrap)
+	round(sendB, 8)
+	local function submit(tb)
+		if sendMsg(tb.Text) then tb.Text = "" end
+	end
+	box.FocusLost:Connect(function(enter)
+		if enter then submit(box) end
+	end)
+	sendB.MouseButton1Click:Connect(function() submit(box) end)
+	statusLbl = mk("TextLabel", {
+		Text = "As mensagens carregam quando esta aba está aberta.", Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 262),
+		BackgroundTransparency = 1, TextColor3 = UI.SOFT, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left,
+	}, wrap)
+	paintRooms()
+
+	-- ===== janela de chat na tela (estilo Roblox) =====
+	local function buildOverlay()
+		if overlayGui then return end
+		overlayGui = mk("ScreenGui", { Name = "ShinChat", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 40, Enabled = false }, gui.Parent)
+		local f = mk("Frame", {
+			Size = UDim2.fromOffset(330, 176), Position = UDim2.fromOffset(10, 170), BackgroundColor3 = Color3.new(0, 0, 0),
+			BackgroundTransparency = 0.55, BorderSizePixel = 0,
+		}, overlayGui)
+		round(f, 8)
+		local head = mk("Frame", { Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1 }, f)
+		mk("TextLabel", {
+			Text = "Chat do script (arraste aqui)", Size = UDim2.new(1, -16, 1, 0), Position = UDim2.fromOffset(8, 0), BackgroundTransparency = 1,
+			TextColor3 = Color3.fromRGB(200, 204, 216), Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left,
+		}, head)
+		makeDraggable(head, f)
+		local ol = mk("ScrollingFrame", {
+			Size = UDim2.new(1, -8, 1, -56), Position = UDim2.fromOffset(4, 22), BackgroundTransparency = 1, BorderSizePixel = 0,
+			ScrollBarThickness = 2, ScrollBarImageColor3 = UI.EDGE, CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y,
+		}, f)
+		mk("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, ol)
+		mk("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }, ol)
+		table.insert(views, { list = ol, compact = true })
+		local ob = mk("TextBox", {
+			Size = UDim2.new(1, -46, 0, 26), Position = UDim2.new(0, 4, 1, -30), BackgroundColor3 = Color3.new(0, 0, 0),
+			BackgroundTransparency = 0.4, Text = "", PlaceholderText = "Toque aqui para conversar", PlaceholderColor3 = Color3.fromRGB(150, 154, 168),
+			TextColor3 = WHITE, Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false,
+			TextXAlignment = Enum.TextXAlignment.Left, ClipsDescendants = true,
+		}, f)
+		round(ob, 6)
+		mk("UIPadding", { PaddingLeft = UDim.new(0, 8) }, ob)
+		local os2 = mk("TextButton", {
+			Text = "➤", AutoButtonColor = false, Size = UDim2.fromOffset(34, 26), Position = UDim2.new(1, -38, 1, -30),
+			BackgroundColor3 = RED, TextColor3 = WHITE, Font = Enum.Font.GothamBold, TextSize = 14,
+		}, f)
+		round(os2, 6)
+		ob.FocusLost:Connect(function(enter)
+			if enter then submit(ob) end
+		end)
+		os2.MouseButton1Click:Connect(function() submit(ob) end)
+		paintRooms()
+		redraw()
+	end
+	local function setOverlay(v)
+		if v then
+			buildOverlay()
+			overlayGui.Enabled = true
+			task.spawn(poll)
+		elseif overlayGui then
+			overlayGui.Enabled = false
+		end
+	end
+	toggleRow(page, "Chat na tela (estilo Roblox)", "Janela de chat no canto, só pra quem está no servidor com o script", function(v) setOverlay(v) end)
+
+	-- atualiza a cada 2,5s enquanto o chat estiver visível
+	page:GetPropertyChangedSignal("Visible"):Connect(function()
+		if page.Visible then task.spawn(poll) end
+	end)
+	task.spawn(function()
+		while running and gui.Parent do
+			if (overlayGui and overlayGui.Enabled) or shown(wrap) then pcall(poll) end
+			task.wait(2.5)
+		end
+	end)
+	table.insert(conns, { Disconnect = function()
+		running = false
+		if overlayGui then pcall(function() overlayGui:Destroy() end) end
+	end })
+end
+
+-- ===== Anúncio global: o ADM manda e aparece na tela de todo mundo que está com o script (qualquer servidor) =====
+-- Lê /announce no Firebase a cada 3s. O primeiro valor lido só marca o ponto de partida (não repete anúncio velho).
+UI.buildAnnounce = function()
+	local TweenService = game:GetService("TweenService")
+	local og = mk("ScreenGui", { Name = "ShinAnuncio", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 999 }, gui.Parent)
+	local queue, lastId, ready, running = {}, nil, false, true
+	local RED2 = Color3.fromRGB(140, 70, 225)
+	local TITLE_RED = Color3.fromRGB(196, 140, 255)
+
+	local function present(a)
+		local text, title = tostring(a.text or ""), tostring(a.title or "")
+		local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 400)
+		local W = math.floor(math.clamp(vp.X * 0.8, 300, 560))
+		local textW = W - 112
+		local H = 150
+		pcall(function()
+			local sz = game:GetService("TextService"):GetTextSize(text, 17, Enum.Font.GothamMedium, Vector2.new(textW, 2000))
+			H = math.floor(math.clamp(sz.Y + 92, 150, math.max(150, vp.Y - 60)))
+		end)
+		local dur = math.clamp(5 + #text / 12, 7, 25)
+		local card = mk("TextButton", {
+			Text = "", AutoButtonColor = false, AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.fromOffset(W, H),
+			Position = UDim2.new(0.5, 0, 0, -H - 30), BackgroundColor3 = Color3.fromRGB(8, 3, 16), BackgroundTransparency = 0.04,
+			BorderSizePixel = 0, ZIndex = 5,
+		}, og)
+		round(card, 20)
+		mk("UIStroke", { Thickness = 3, Color = RED2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, card)
+		local ic = mk("ImageLabel", {
+			Size = UDim2.fromOffset(64, 64), Position = UDim2.new(0, 16, 0.5, -34), BackgroundColor3 = Color3.fromRGB(30, 16, 52),
+			BackgroundTransparency = 0, Image = "", ScaleType = Enum.ScaleType.Crop, ZIndex = 6,
+		}, card)
+		round(ic, 32)
+		mk("UIStroke", { Thickness = 3, Color = RED2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ic)
+		local uid = tonumber(a.uid)
+		if uid then
+			task.spawn(function()
+				local ok, img = pcall(function()
+					return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+				end)
+				if ok and img and ic.Parent then ic.Image = img end
+			end)
+		end
+		mk("TextLabel", {
+			Text = "📢", Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(96, 8), BackgroundTransparency = 1,
+			TextColor3 = TITLE_RED, Font = Enum.Font.GothamBold, TextSize = 22, ZIndex = 6,
+		}, card)
+		mk("TextLabel", {
+			Text = title, Size = UDim2.new(1, -140, 0, 30), Position = UDim2.fromOffset(128, 8), BackgroundTransparency = 1,
+			TextColor3 = TITLE_RED, Font = Enum.Font.GothamBlack, TextSize = 22, TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 6,
+		}, card)
+		mk("Frame", {
+			Size = UDim2.new(1, -112, 0, 2), Position = UDim2.fromOffset(96, 44), BackgroundColor3 = RED2, BorderSizePixel = 0, ZIndex = 6,
+		}, card)
+		mk("TextLabel", {
+			Text = text, Size = UDim2.new(1, -112, 1, -76), Position = UDim2.fromOffset(96, 52), BackgroundTransparency = 1,
+			TextColor3 = WHITE, Font = Enum.Font.GothamMedium, TextSize = 17, TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 6,
+		}, card)
+		local bar = mk("Frame", {
+			Size = UDim2.new(1, -112, 0, 4), Position = UDim2.new(0, 96, 1, -16), BackgroundColor3 = Color3.fromRGB(170, 95, 255),
+			BorderSizePixel = 0, ZIndex = 6,
+		}, card)
+		round(bar, 2)
+		local dismissed = false
+		card.MouseButton1Click:Connect(function() dismissed = true end)
+		TweenService:Create(card, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, 0, 0, 24) }):Play()
+		TweenService:Create(bar, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 4) }):Play()
+		local t0 = os.clock()
+		while running and not dismissed and os.clock() - t0 < dur do task.wait(0.1) end
+		TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.new(0.5, 0, 0, -H - 30) }):Play()
+		task.wait(0.35)
+		card:Destroy()
+	end
+
+	task.spawn(function()
+		while running and og.Parent do
+			if #queue > 0 then
+				pcall(present, table.remove(queue, 1))
+			else
+				task.wait(0.3)
+			end
+		end
+	end)
+	task.spawn(function()
+		while running and gui.Parent do
+			local body = http("GET", "/announce.json")
+			if body ~= nil then
+				local a
+				if body ~= "null" and body ~= "" then
+					local ok, d = pcall(HttpService.JSONDecode, HttpService, body)
+					if ok and type(d) == "table" then a = d end
+				end
+				if not ready then
+					ready = true
+					lastId = a and a.id or nil
+				elseif a and a.id ~= lastId then
+					lastId = a.id
+					if type(a.text) == "string" and a.text ~= "" then
+						table.insert(queue, { title = a.title, text = a.text, uid = a.uid })
+					end
+				end
+			end
+			task.wait(3)
+		end
+	end)
+	table.insert(conns, { Disconnect = function()
+		running = false
+		pcall(function() og:Destroy() end)
+	end })
+	return {
+		show = function(a) table.insert(queue, a) end,
+		mark = function(id) lastId = id end,
+	}
+end
+
 -- ===== Detecta o jogo: cada jogo só mostra as abas dele =====
 local GAMES = {
 	Brookhaven = { 4924922222 },
@@ -5707,7 +6083,7 @@ local function buildTabs(last)
 	if inGame("Evade") then table.insert(t, "Evade") end
 	if inGame("Grau SP") then table.insert(t, "Motos") end
 	if inGame("Sintonia RP") then table.insert(t, "Sintonia RP") end
-	for _, n in ipairs({ "Tag", "Mod", "Efeitos", "Extras" }) do table.insert(t, n) end -- comuns aos dois jogos
+	for _, n in ipairs({ "Chat", "Tag", "Mod", "Efeitos", "Extras" }) do table.insert(t, n) end -- comuns aos dois jogos
 	for _, n in ipairs(last) do table.insert(t, n) end
 	return t
 end
@@ -9551,6 +9927,8 @@ if pages["Itens"] then buildItens(pages["Itens"], say) end
 local stopProt = pages["Proteções"] and buildProtExtra(pages["Proteções"], say)
 UI.buildTag(pages, say)
 if pages["Nome"] then buildBrookhaven(pages, say) end
+local stopChat = pages["Chat"] and buildChat(pages["Chat"], say)
+do local okA, annA = pcall(UI.buildAnnounce); if okA then UI.ANN = annA end end
 local stopCar = pages["Car"] and buildCar(pages["Car"], say)
 local stopMotos = pages["Motos"] and buildMotos(pages["Motos"], say)
 UI.stopSintonia = pages["Sintonia RP"] and UI.buildSintonia(pages["Sintonia RP"], say)
