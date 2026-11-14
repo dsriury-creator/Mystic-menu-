@@ -873,7 +873,7 @@ local ICONS = {
 	["Sintonia RP"] = "◎",
 	["Scripts"] = "◆", ["Evade"] = "♦", ["Brookhaven"] = "◇", ["Natural Disaster"] = "▲", ["Mod"] = "★", ["Efeitos"] = "●",
 	["Extras"] = "■", ["Conexão"] = "▼", ["Créditos"] = "☆", ["ID"] = "◉", ["Admin"] = "◀", ["Proteções"] = "◈", ["Movimento"] = "▶",
-	["Itens"] = "✚", ["Motos"] = "◆", ["Nome"] = "▣", ["Música"] = "♪", ["Chat"] = "✉", ["Tag"] = "✦",
+	["Itens"] = "✚", ["Motos"] = "◆", ["Nome"] = "▣", ["Música"] = "♪", ["Chat"] = "✉", ["Tag"] = "✦", ["Troll Player"] = "☠",
 }
 UI.gated, UI.open = {}, {} -- abas que só aparecem com liberação (nenhuma por enquanto)
 local function buildWindow(w, h, title, sub, tabNames, onClose)
@@ -2993,11 +2993,13 @@ function TAG.rgbStart()
 end
 -- dados efetivos da tag: ligada pelo próprio, ou forçada quando o Dono está no servidor (só quem tem tag dada por ID)
 function TAG.data()
-	if TAG.panelLock then -- quem usa o painel ADM por ID: só a tag fixa "Painel ADM" embaixo do nome, sem escolher nada
-		return { on = true, text = "", font = "GothamBlack", role = "Painel ADM", rgb = false }
-	end
+	-- painel ADM: só troca o cargo pra "Painel ADM" enquanto está liberado; ligar/desligar e o resto continuam escolha sua, igual tag de Sub Dono/Influenciador
+	local role = TAG.panelLock and "Painel ADM" or TAG.role
+	local text = TAG.panelLock and "" or TAG.text
+	local font = TAG.panelLock and "GothamBlack" or TAG.font
+	local rgb = (not TAG.panelLock) and TAG.rgb == true
 	local on = TAG.on or (TAG.force and TAG.granted and not TAG.forceOff) or false
-	return { on = on, text = TAG.text, font = TAG.font, role = TAG.role, rgb = TAG.rgb == true }
+	return { on = on, text = text, font = font, role = role, rgb = rgb }
 end
 function TAG.refresh()
 	if TAG.avail then pcall(tagDraw, lp.Character, TAG.data()) end
@@ -5656,6 +5658,385 @@ end
 -- Fica na aba Chat (toca na caixa, digita e envia) e também pode aparecer na tela, no canto.
 -- O chat é só do servidor atual: quem vê e manda mensagem é quem está no mesmo mapa e com o script ligado.
 -- Usa o Firebase em /chat/<canal>. As regras do banco precisam do bloco "chat" (regras novas).
+
+-- ===== Sub-aba Troll Player (Brookhaven): escolher qualquer jogador do servidor =====
+local function buildTrollPlayer(page, say)
+	local RSv = game:GetService("ReplicatedStorage")
+	section(page, "Jogador alvo")
+	local target
+	local tgtDD
+	tgtDD = dropdown(page, "Escolher jogador (nenhum)", function()
+		local t = {}
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl ~= lp then table.insert(t, { label = pl.DisplayName .. " (@" .. pl.Name .. ")", value = pl }) end
+		end
+		return t
+	end, function(it)
+		target = it.value
+		tgtDD.setText("Jogador: " .. it.value.DisplayName)
+	end)
+	local removingConn = Players.PlayerRemoving:Connect(function(pl)
+		if pl == target then target = nil; tgtDD.setText("Escolher jogador (nenhum)") end
+	end)
+
+	-- ===== Iniciar troll: arquibancadas do Prop Maker perseguem o alvo; quando ele senta, vão pro void =====
+	section(page, "Troll da arquibancada")
+	local BLEACHER, CATEGORY, COUNT = "FurnitureBleachers", "Furniture", 3
+	local running, gen = false, 0
+	local recs = {}
+	local setSwitch, lastTouch = nil, 0
+
+	local function remoteRE(name)
+		local re = RSv:FindFirstChild("RE")
+		return re and re:FindFirstChild(name)
+	end
+	local function findTool(name)
+		local c = lp.Character
+		local t = c and c:FindFirstChild(name)
+		if t then return t, "character" end
+		local bp = lp:FindFirstChildOfClass("Backpack")
+		t = bp and bp:FindFirstChild(name)
+		if t then return t, "backpack" end
+		return nil
+	end
+	local function equipBox()
+		local t, where = findTool("PropMaker")
+		if not t then
+			local re1 = remoteRE("1Too1l")
+			if re1 then pcall(function() re1:InvokeServer("PickingTools", "PropMaker") end) end
+			for _ = 1, 30 do
+				task.wait(0.1)
+				t, where = findTool("PropMaker")
+				if t then break end
+			end
+		end
+		if t and where == "backpack" then
+			local h = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+			if h then pcall(function() h:EquipTool(t) end) end
+			for _ = 1, 20 do
+				task.wait(0.1)
+				if lp.Character and lp.Character:FindFirstChild("PropMaker") then break end
+			end
+		end
+		return lp.Character and lp.Character:FindFirstChild("PropMaker")
+	end
+	local function scanMine()
+		local out = {}
+		local wc = workspace:FindFirstChild("WorkspaceCom")
+		if not wc then return out end
+		local want = "Prop" .. lp.Name
+		for _, c in ipairs(wc:GetChildren()) do
+			if c.Name:sub(1, #want) == want then out[c] = true end
+			for _, p in ipairs(c:GetChildren()) do
+				if p.Name:sub(1, #want) == want then out[p] = true end
+			end
+		end
+		return out
+	end
+	local function groundAt(x, z, y0)
+		local rp = RaycastParams.new()
+		rp.FilterType = Enum.RaycastFilterType.Exclude
+		local ex = { lp.Character }
+		for p in pairs(scanMine()) do ex[#ex + 1] = p end
+		rp.FilterDescendantsInstances = ex
+		local r = workspace:Raycast(Vector3.new(x, y0 + 20, z), Vector3.new(0, -80, 0), rp)
+		if r then return r.Instance, r.Position end
+		return nil
+	end
+	local function rootOf(pl)
+		local c = pl and pl.Character
+		return c and c:FindFirstChild("HumanoidRootPart"), c and c:FindFirstChildOfClass("Humanoid")
+	end
+	local function subRemote(rec, name)
+		local r = rec.remotes[name]
+		if r and r.Parent then return r end
+		r = rec.model:FindFirstChild(name)
+		rec.remotes[name] = r
+		return r
+	end
+	local function waitRemotes(rec, secs)
+		for _ = 1, math.floor(secs * 10) do
+			if subRemote(rec, "SetCurrentCFrame") and subRemote(rec, "ResumePropBehavior") then return true end
+			task.wait(0.1)
+		end
+		return subRemote(rec, "SetCurrentCFrame") ~= nil
+	end
+	-- um ciclo de edição do bloco, igual ao do jogo: (clicar) -> Begin -> Set -> End -> Resume
+	local function moveTo(rec, cf, full)
+		if rec.busy and os.clock() - (rec.busyAt or 0) < 6 then return false end
+		rec.busy, rec.busyAt = true, os.clock()
+		local ok, err = pcall(function()
+			local s = subRemote(rec, "SetCurrentCFrame")
+			if not s then error("sem remotes", 0) end
+			if not full then s:InvokeServer(cf); return end
+			local tool = lp.Character and lp.Character:FindFirstChild("PropMaker")
+			local pm = tool and tool:FindFirstChild("Tool_PropMake")
+			local touch = rec.model:FindFirstChild("Touch", true)
+			if pm and touch then pm:FireServer(touch, touch.Position) end
+			local b, e, rs = subRemote(rec, "BeginPreview"), subRemote(rec, "EndPreview"), subRemote(rec, "ResumePropBehavior")
+			if b then b:InvokeServer() end
+			s:InvokeServer(cf)
+			if e then e:InvokeServer() end
+			if rs then rs:InvokeServer() end
+		end)
+		rec.busy = false
+		if not ok then rec.lastErr = tostring(err):sub(1, 80) end
+		return ok
+	end
+	local function seatCFFor(rec, root, i)
+		local look = root.CFrame.LookVector
+		local flat = Vector3.new(look.X, 0, look.Z)
+		if flat.Magnitude < 0.01 then flat = Vector3.new(0, 0, -1) else flat = flat.Unit end
+		local off = ({ 0, 6, -6, 12, -12 })[i] or 0
+		local seatPos = root.Position + flat * off - Vector3.new(0, 2, 0)
+		return CFrame.new(seatPos - rec.delta) * rec.rot
+	end
+	local function voidY()
+		-- bem mais fundo que o limite de queda do jogo: já nasce dentro da zona que mata, não só embaixo do mapa
+		local ok, h = pcall(function() return workspace.FallenPartsDestroyHeight end)
+		if ok and type(h) == "number" and h < 0 and h > -1e6 then return h - 500 end
+		return -3000
+	end
+	local function despawn(rec)
+		-- tenta apagar pelo Prop Maker; se o jogo não aceitar, o void já remove o bloco sozinho
+		local tool = lp.Character and lp.Character:FindFirstChild("PropMaker")
+		local qd = tool and tool:FindFirstChild("QuickDelete")
+		if qd and rec.model.Parent then
+			pcall(function() qd:FireServer(rec.model) end)
+			local bp = rec.model:FindFirstChildWhichIsA("BasePart", true)
+			if bp then pcall(function() qd:FireServer(bp) end) end
+		end
+	end
+	local function sendToVoid(rec)
+		local ok, pv = pcall(function() return rec.model:GetPivot() end)
+		if not ok then return end
+		local y = voidY()
+		local cf = CFrame.new(pv.Position.X, y, pv.Position.Z) * rec.rot
+		moveTo(rec, cf, true)
+		task.wait(0.4)
+		-- se por algum motivo não desceu o suficiente, manda de novo bem mais fundo (nunca mais raso)
+		for _ = 1, 3 do
+			local ok2, p2 = pcall(function() return rec.model:GetPivot().Position end)
+			if not ok2 or not rec.model.Parent then break end
+			if p2.Y <= y + 150 then break end
+			y = y - 800
+			moveTo(rec, CFrame.new(pv.Position.X, y, pv.Position.Z) * rec.rot, false)
+			task.wait(0.3)
+		end
+		despawn(rec)
+	end
+	local function cleanup()
+		local list = recs
+		recs = {}
+		for _, rec in ipairs(list) do
+			if rec.model.Parent then task.spawn(sendToVoid, rec) end
+		end
+	end
+	local function spawnBleacher(tool, re2, known)
+		local pm = tool:FindFirstChild("Tool_PropMake")
+		if not pm then return nil end
+		local r0 = rootOf(lp)
+		if not r0 then return nil end
+		for attempt = 1, 3 do
+			local ang = (#recs + 1) * 2.1 + (attempt - 1) * 0.7
+			local dist = 10 + (attempt - 1) * 3
+			local hit, pos = groundAt(r0.Position.X + math.cos(ang) * dist, r0.Position.Z + math.sin(ang) * dist, r0.Position.Y)
+			if hit then
+				pcall(function() re2:FireServer("OpenPropMenu") end)
+				pcall(function() re2:FireServer("RequestingPropName", BLEACHER, CATEGORY, nil) end)
+				task.wait(0.35)
+				pm:FireServer(hit, pos)
+				for _ = 1, 25 do
+					task.wait(0.1)
+					for p in pairs(scanMine()) do
+						if not known[p] then return p end
+					end
+				end
+				-- o anterior pode estar "em edição": confirma e tenta de novo
+				if recs[#recs] then
+					pcall(function()
+						local rs = subRemote(recs[#recs], "ResumePropBehavior")
+						if rs then rs:InvokeServer() end
+					end)
+				end
+			end
+		end
+		return nil
+	end
+
+	local function stopTroll(msg)
+		if not running then return end
+		running = false
+		gen = gen + 1
+		task.spawn(cleanup)
+		pcall(function() local re2 = remoteRE("1Clea1rTool1s"); if re2 then re2:FireServer("ClosePropMenu") end end)
+		if setSwitch then setSwitch(false) end
+		if msg then say(msg) end
+	end
+
+	local function startTroll()
+		if running then return end
+		if not target then
+			say("Escolha um jogador alvo primeiro.")
+			if setSwitch then setSwitch(false) end
+			return
+		end
+		running = true
+		gen = gen + 1
+		local g = gen
+		task.spawn(function()
+			local function alive() return running and gen == g end
+			local re2 = remoteRE("1Clea1rTool1s")
+			if not re2 then stopTroll("Remotes do Prop Maker não encontrados (só funciona no Brookhaven)."); return end
+			say("Equipando a caixa...")
+			local tool = equipBox()
+			if not tool then stopTroll("A caixa (Prop Maker) não apareceu na mochila."); return end
+			local known = scanMine()
+			for i = 1, COUNT do
+				if not alive() then return end
+				local m = spawnBleacher(tool, re2, known)
+				if m then
+					known[m] = true
+					local rec = { model = m, remotes = {}, busy = false }
+					waitRemotes(rec, 4)
+					local ok, pv = pcall(function() return m:GetPivot() end)
+					local seat = m:FindFirstChild("Seat", true)
+					if ok and seat then
+						rec.seat = seat
+						rec.rot = pv - pv.Position
+						rec.delta = seat.Position - pv.Position
+						recs[#recs + 1] = rec
+					else
+						say("Arquibancada " .. i .. " sem assento, ignorada.")
+						task.spawn(despawn, rec)
+					end
+				else
+					say("Arquibancada " .. i .. " não apareceu.")
+				end
+			end
+			pcall(function() re2:FireServer("ClosePropMenu") end)
+			if not alive() then return end
+			if #recs == 0 then stopTroll("Nenhuma arquibancada foi criada."); return end
+			say(#recs .. " arquibancada(s) indo atrás de " .. target.DisplayName .. ".")
+
+			-- cada arquibancada persegue sem parar (nunca para sozinha, só quando o alvo sai do servidor ou você desliga)
+			for i, rec in ipairs(recs) do
+				task.spawn(function()
+					local first = true
+					local fails = 0
+					while alive() and rec.model.Parent do
+						local root = rootOf(target)
+						if root then
+							local ok = moveTo(rec, seatCFFor(rec, root, i), first or fails >= 3)
+							if ok then first = false; fails = 0 else fails = fails + 1 end
+						end
+						task.wait(0.12)
+					end
+				end)
+			end
+			-- vigia: toda vez que o alvo sentar em alguma arquibancada, manda ela pro void; se ele pular antes de cair, continua perseguindo (não desliga)
+			while alive() do
+				if not target or not target.Parent then stopTroll("O alvo saiu do servidor."); return end
+				local _, hum = rootOf(target)
+				local sp = hum and hum.SeatPart
+				if sp then
+					local caughtRec
+					for _, rec in ipairs(recs) do
+						if rec.model.Parent and sp:IsDescendantOf(rec.model) then caughtRec = rec; break end
+					end
+					if caughtRec then
+						say(target.DisplayName .. " sentou! Mandando pro void...")
+						task.spawn(sendToVoid, caughtRec)
+						local t0 = os.clock()
+						while alive() and hum.SeatPart == sp and os.clock() - t0 < 10 do task.wait(0.1) end
+						if not alive() then return end
+						if hum.SeatPart ~= sp and target and target.Parent then
+							say("Escapou antes de cair! Continuando a perseguir " .. target.DisplayName .. ".")
+						end
+					end
+				end
+				task.wait(0.1)
+			end
+		end)
+	end
+
+	local sw
+	sw, setSwitch = toggleRow(page, "Iniciar troll", "Equipa a caixa, cria arquibancadas atrás do alvo e manda pro void", function(on)
+		if on and os.clock() - lastTouch > 1.5 then
+			-- ligado automaticamente ao restaurar configuração salva: nunca inicia sozinho
+			if setSwitch then setSwitch(false) end
+			return
+		end
+		if on then startTroll() else stopTroll("Troll parado.") end
+	end, false)
+	pcall(function()
+		sw.MouseButton1Down:Connect(function() lastTouch = os.clock() end)
+		sw.InputBegan:Connect(function(i)
+			if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then lastTouch = os.clock() end
+		end)
+	end)
+
+	-- ===== Espiar jogador: a câmera segue o alvo escolhido =====
+	section(page, "Espiar")
+	local spec, specGen, setSpecSwitch, specTouch = false, 0, nil, 0
+	local function camBack()
+		local cam = workspace.CurrentCamera
+		local _, h = rootOf(lp)
+		if cam and h then pcall(function() cam.CameraSubject = h end) end
+	end
+	local function stopSpec(msg)
+		if not spec then return end
+		spec = false
+		specGen = specGen + 1
+		camBack()
+		if setSpecSwitch then setSpecSwitch(false) end
+		if msg then say(msg) end
+	end
+	local function startSpec()
+		if spec then return end
+		if not target then
+			say("Escolha um jogador alvo primeiro.")
+			if setSpecSwitch then setSpecSwitch(false) end
+			return
+		end
+		spec = true
+		specGen = specGen + 1
+		local g = specGen
+		say("Espiando " .. target.DisplayName .. ".")
+		task.spawn(function()
+			local watched = target
+			while spec and specGen == g do
+				if target ~= watched then watched = target end
+				if not target or not target.Parent then stopSpec("O alvo saiu do servidor."); return end
+				local _, h = rootOf(target)
+				local cam = workspace.CurrentCamera
+				if cam and h and cam.CameraSubject ~= h then pcall(function() cam.CameraSubject = h end) end
+				task.wait(0.25)
+			end
+		end)
+	end
+	local ssw
+	ssw, setSpecSwitch = toggleRow(page, "Espiar jogador", "A câmera segue o jogador escolhido. Desligue para voltar", function(on)
+		if on and os.clock() - specTouch > 1.5 then
+			if setSpecSwitch then setSpecSwitch(false) end
+			return
+		end
+		if on then startSpec() else stopSpec("Voltei a câmera pra você.") end
+	end, false)
+	pcall(function()
+		ssw.MouseButton1Down:Connect(function() specTouch = os.clock() end)
+		ssw.InputBegan:Connect(function(i)
+			if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then specTouch = os.clock() end
+		end)
+	end)
+
+	return function()
+		removingConn:Disconnect()
+		if running then stopTroll() end
+		if spec then stopSpec() end
+	end
+end
+
 local function buildChat(page, say)
 	local CHAT_ROLE = nil
 	local jid = tostring(game.JobId)
@@ -6072,7 +6453,7 @@ local function inGame(name)
 	return false
 end
 -- abas do Brookhaven: cada função é uma aba normal, só aparecem no jogo Brookhaven
-local BROOKHAVEN_TABS = { "Nome", "Música", "Proteções", "Movimento", "Blocos", "Car", "Avatar" }
+local BROOKHAVEN_TABS = { "Nome", "Música", "Troll Player", "Proteções", "Movimento", "Blocos", "Car", "Avatar" }
 local function buildTabs(last)
 	local t = { "ID", "Créditos", "Scripts" } -- ID e Créditos ficam no início
 	if inGame("Brookhaven") then
@@ -9934,6 +10315,7 @@ local stopMotos = pages["Motos"] and buildMotos(pages["Motos"], say)
 UI.stopSintonia = pages["Sintonia RP"] and UI.buildSintonia(pages["Sintonia RP"], say)
 AVATAR.stop = pages["Avatar"] and buildAvatar(pages["Avatar"], say)
 local stopWings = pages["Blocos"] and buildWings(pages["Blocos"], say)
+local stopTrollPlayer = pages["Troll Player"] and buildTrollPlayer(pages["Troll Player"], say)
 buildCredits(pages["Créditos"])
 if pages["ID"] then buildId(pages["ID"], say) end
 local stopMods = buildMods(pages["Mod"], say)
@@ -10653,7 +11035,7 @@ do
 		else
 			TAG.panelLock, TAG.avail = false, baseAvail
 			if pf then pf.Visible = false end
-			if not baseAvail then
+			if not baseAvail and not TAG.on then
 				pcall(function()
 					local hd = lp.Character and lp.Character:FindFirstChild("Head")
 					local o = hd and hd:FindFirstChild("DsTag")
